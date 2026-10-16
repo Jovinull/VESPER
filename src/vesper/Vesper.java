@@ -9,5 +9,6 @@ public class Vesper extends Mod{
     public void loadContent(){
         VItems.load();
         VUnits.load();
+        VBlocks.load();
     }
 }

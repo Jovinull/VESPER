@@ -38,7 +38,10 @@ public class VBlocks{
 
     //industry and power
     structuralForge, scrapRecycler, alloyRefinery, mineralCompressor,
-    combustionEngine, powerAccumulator, experimentalResonator, componentAssembler;
+    combustionEngine, powerAccumulator, experimentalResonator, componentAssembler,
+
+    //defense
+    reinforcedWall, heavyWall, kineticTurret, pulseTurret, ancientPlatform;
 
     public static void load(){
         machineBasalt = new Floor("machine-basalt", 3);
@@ -210,6 +213,87 @@ public class VBlocks{
             consumeItems(with(structuralAlloy, 2, conductiveScrap, 2));
             consumePower(1f);
             drawer = new DrawMulti(new DrawDefault(), new DrawRegion("-top"));
+        }};
+
+        int wallHealth = 110 * 4;
+        reinforcedWall = new Wall("reinforced-wall"){{
+            requirements(Category.defense, with(structuralAlloy, 6));
+            health = wallHealth;
+        }};
+
+        heavyWall = new Wall("heavy-wall"){{
+            requirements(Category.defense, with(structuralAlloy, 24));
+            size = 2;
+            health = wallHealth * 4;
+        }};
+
+        kineticTurret = new ItemTurret("kinetic-turret"){{
+            requirements(Category.turret, with(ferroprism, 45, structuralAlloy, 20));
+            size = 2;
+            health = 900;
+            range = 190f;
+            reload = 18f;
+            recoil = 2f;
+            shootY = 8f;
+            rotateSpeed = 8f;
+            shootCone = 12f;
+            ammo(
+                ferroprism, new BasicBulletType(3.2f, 18f){{
+                    width = 8f;
+                    height = 10f;
+                    lifetime = 60f;
+                    frontColor = VPal.industrialLight;
+                    backColor = VPal.industrial;
+                }},
+                structuralAlloy, new BasicBulletType(3.6f, 30f){{
+                    width = 9f;
+                    height = 12f;
+                    lifetime = 55f;
+                    pierce = true;
+                    pierceCap = 2;
+                    frontColor = Color.white;
+                    backColor = VPal.steelLight;
+                }}
+            );
+        }};
+
+        pulseTurret = new PowerTurret("pulse-turret"){{
+            requirements(Category.turret, with(ferroprism, 40, resonanceCrystal, 25));
+            size = 2;
+            health = 820;
+            range = 165f;
+            reload = 30f;
+            recoil = 1.5f;
+            shootY = 10f;
+            heatColor = VPal.resonance;
+            shootSound = Sounds.shootLaser;
+            consumePower(3.5f);
+            shootType = new LaserBoltBulletType(5.2f, 16f){{
+                lifetime = 34f;
+                healPercent = 0f;
+                frontColor = Color.white;
+                backColor = VPal.resonance;
+            }};
+        }};
+
+        ancientPlatform = new PowerTurret("ancient-platform"){{
+            requirements(Category.turret, with(structuralAlloy, 120, recoveredCircuit, 40, resonanceCore, 20));
+            size = 3;
+            health = 2400;
+            range = 205f;
+            reload = 90f;
+            recoil = 3f;
+            shootY = 22f;
+            shake = 2f;
+            heatColor = VPal.resonance;
+            shootSound = Sounds.shootLancer;
+            consumePower(6f);
+            shootType = new LaserBulletType(60f){{
+                colors = new Color[]{VPal.resonanceDark.cpy().a(0.4f), VPal.resonance, Color.white};
+                length = 210f;
+                width = 16f;
+                hitEffect = Fx.hitLancer;
+            }};
         }};
     }
 }

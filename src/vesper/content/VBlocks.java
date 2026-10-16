@@ -31,7 +31,10 @@ public class VBlocks{
     oreFerroprism, oreConductiveScrap, oreResonanceCrystal, oreVitreousCarbon,
 
     //logistics
-    transitBelt, cargoRouter, cargoJunction, cargoBridge, industrialConduit, resonanceLink;
+    transitBelt, cargoRouter, cargoJunction, cargoBridge, industrialConduit, resonanceLink,
+
+    //extraction
+    surveyDrill, reinforcedDrill, scrapCollector, crystalExtractor;
 
     public static void load(){
         machineBasalt = new Floor("machine-basalt", 3);
@@ -80,6 +83,40 @@ public class VBlocks{
             laserRange = 7f;
             laserColor1 = VPal.resonanceLight;
             laserColor2 = VPal.danger;
+        }};
+
+        surveyDrill = new Drill("survey-drill"){{
+            requirements(Category.production, with(ferroprism, 12));
+            size = 2;
+            tier = 2;
+            drillTime = 600f;
+        }};
+
+        reinforcedDrill = new Drill("reinforced-drill"){{
+            requirements(Category.production, with(ferroprism, 40, structuralAlloy, 20));
+            size = 3;
+            tier = 3;
+            drillTime = 400f;
+            consumePower(0.6f);
+        }};
+
+        scrapCollector = new Drill("scrap-collector"){{
+            requirements(Category.production, with(ferroprism, 10));
+            size = 2;
+            tier = 1;
+            drillTime = 480f;
+            rotateSpeed = 1.6f;
+        }};
+
+        crystalExtractor = new Drill("crystal-extractor"){{
+            requirements(Category.production, with(ferroprism, 30, recoveredCircuit, 10));
+            size = 2;
+            tier = 3;
+            drillTime = 720f;
+            rotateSpeed = 0.8f;
+            drawRim = true;
+            heatColor = VPal.resonance;
+            consumePower(0.5f);
         }};
     }
 }

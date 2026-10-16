@@ -97,6 +97,14 @@ val jarAndroid = tasks.register("jarAndroid"){
     }
 }
 
+// --- development tooling: never part of the mod artifact ---
+
+tasks.register<Exec>("validateSprites"){
+    group = "verification"
+    description = "Validates generated sprites and checks they match a fresh generation (needs Python 3 + Pillow)."
+    commandLine(if(isWindows) "python" else "python3", "tools/spritegen/validate.py", "--stale")
+}
+
 tasks.register<Jar>("deploy"){
     dependsOn(jarAndroid, tasks.jar)
     archiveFileName.set("$projectName.jar")

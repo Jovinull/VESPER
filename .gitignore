@@ -1,0 +1,31 @@
+## Gradle
+.gradle/
+/build/
+local.properties
+
+## Local isolated Mindustry client used for testing (downloaded, never committed)
+/run/
+
+## Java
+*.class
+hs_err_pid*
+replay_pid*
+crash-report-*
+
+## Python
+__pycache__/
+*.pyc
+
+## IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.classpath
+.project
+.settings/
+
+## OS
+.DS_Store
+Thumbs.db

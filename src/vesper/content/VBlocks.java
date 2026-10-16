@@ -41,7 +41,10 @@ public class VBlocks{
     combustionEngine, powerAccumulator, experimentalResonator, componentAssembler,
 
     //defense
-    reinforcedWall, heavyWall, kineticTurret, pulseTurret, ancientPlatform;
+    reinforcedWall, heavyWall, kineticTurret, pulseTurret, ancientPlatform,
+
+    //special
+    coreFoothold, derelictReactor, stabilizerPylon, dataTerminal, recoverableRuin;
 
     public static void load(){
         machineBasalt = new Floor("machine-basalt", 3);
@@ -294,6 +297,46 @@ public class VBlocks{
                 width = 16f;
                 hitEffect = Fx.hitLancer;
             }};
+        }};
+
+        coreFoothold = new CoreBlock("core-foothold"){{
+            requirements(Category.effect, BuildVisibility.editorOnly, with(ferroprism, 1500, conductiveScrap, 800));
+            alwaysUnlocked = true;
+            isFirstTier = true;
+            unitType = VUnits.maintenanceDrone;
+            health = 1200;
+            itemCapacity = 4000;
+            size = 3;
+            unitCapModifier = 8;
+        }};
+
+        derelictReactor = new AncientStructure("derelict-reactor"){{
+            requirements(Category.effect, BuildVisibility.sandboxOnly, with(structuralAlloy, 200));
+            size = 4;
+            health = 8000;
+        }};
+
+        stabilizerPylon = new AncientStructure("stabilizer-pylon"){{
+            requirements(Category.effect, BuildVisibility.sandboxOnly, with(structuralAlloy, 60));
+            size = 2;
+            health = 1600;
+            pulseScale = 25f;
+        }};
+
+        dataTerminal = new AncientStructure("data-terminal"){{
+            requirements(Category.effect, BuildVisibility.sandboxOnly, with(structuralAlloy, 40));
+            size = 2;
+            health = 1200;
+            pulseMag = 0.15f;
+        }};
+
+        recoverableRuin = new AncientStructure("recoverable-ruin"){{
+            requirements(Category.effect, BuildVisibility.sandboxOnly, with(structuralAlloy, 80));
+            size = 3;
+            health = 3000;
+            glowColor = VPal.industrial;
+            pulseScale = 18f;
+            pulseMag = 0.5f;
         }};
     }
 }

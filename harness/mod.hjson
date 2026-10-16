@@ -1,0 +1,11 @@
+displayName: "Vesper Test Harness"
+name: "vesper-harness"
+author: "Jovinull"
+main: "vesper.harness.VesperHarness"
+description: "Development-only harness: builds the Vesper gallery map, checks texture regions and captures screenshots. Inactive unless the game is started with -Dvesper.harness."
+version: "0.1.0"
+minGameVersion: 160.7
+dependencies: ["vesper"]
+java: true
+hidden: true
+hideBrowser: true

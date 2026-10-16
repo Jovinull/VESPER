@@ -1,0 +1,10 @@
+displayName: "Vesper"
+name: "vesper"
+author: "Jovinull"
+main: "vesper.Vesper"
+subtitle: "An industrial world that remembers."
+description: "A derelict machine-planet slowly wakes as its ancient industry runs again. Art preview build: The Silent Basin visual set and a small playable sandbox."
+version: "0.1.0-art-preview"
+minGameVersion: 160.7
+java: true
+hideBrowser: true

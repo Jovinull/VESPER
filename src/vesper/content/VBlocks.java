@@ -28,7 +28,10 @@ public class VBlocks{
     public static Block
     //environment (declaration order sets floor edge priority)
     machineBasalt, scrapSoil, vitrifiedDust, rustedPlating,
-    oreFerroprism, oreConductiveScrap, oreResonanceCrystal, oreVitreousCarbon;
+    oreFerroprism, oreConductiveScrap, oreResonanceCrystal, oreVitreousCarbon,
+
+    //logistics
+    transitBelt, cargoRouter, cargoJunction, cargoBridge, industrialConduit, resonanceLink;
 
     public static void load(){
         machineBasalt = new Floor("machine-basalt", 3);
@@ -40,5 +43,43 @@ public class VBlocks{
         oreConductiveScrap = new OreBlock("ore-conductive-scrap", conductiveScrap){{ variants = 2; }};
         oreResonanceCrystal = new OreBlock("ore-resonance-crystal", resonanceCrystal){{ variants = 2; }};
         oreVitreousCarbon = new OreBlock("ore-vitreous-carbon", vitreousCarbon){{ variants = 2; }};
+
+        transitBelt = new Conveyor("transit-belt"){{
+            requirements(Category.distribution, with(ferroprism, 1));
+            health = 55;
+            speed = 0.045f;
+            displayedSpeed = 6.2f;
+        }};
+
+        cargoRouter = new Router("cargo-router"){{
+            requirements(Category.distribution, with(ferroprism, 3));
+        }};
+
+        cargoJunction = new Junction("cargo-junction"){{
+            requirements(Category.distribution, with(ferroprism, 3));
+            speed = 26;
+            capacity = 6;
+        }};
+
+        cargoBridge = new BufferedItemBridge("cargo-bridge"){{
+            requirements(Category.distribution, with(ferroprism, 6, conductiveScrap, 6));
+            range = 4;
+            speed = 74f;
+            arrowSpacing = 6f;
+            bufferCapacity = 14;
+        }};
+
+        industrialConduit = new Conduit("industrial-conduit"){{
+            requirements(Category.liquid, with(ferroprism, 1, vitreousCarbon, 1));
+            health = 60;
+        }};
+
+        resonanceLink = new PowerNode("resonance-link"){{
+            requirements(Category.power, with(ferroprism, 2, resonanceCrystal, 2));
+            maxNodes = 8;
+            laserRange = 7f;
+            laserColor1 = VPal.resonanceLight;
+            laserColor2 = VPal.danger;
+        }};
     }
 }

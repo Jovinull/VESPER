@@ -99,6 +99,75 @@ val jarAndroid = tasks.register("jarAndroid"){
 
 // --- development tooling: never part of the mod artifact ---
 
+//test harness: a second mod that builds the gallery map, checks atlas regions and captures screenshots
+val harness: SourceSet by sourceSets.creating{
+    java.setSrcDirs(listOf("harness/src"))
+}
+
+dependencies{
+    "harnessCompileOnly"("Anuken:Mindustry:$mindustryVersion")
+}
+
+val harnessJar = tasks.register<Jar>("harnessJar"){
+    archiveFileName.set("VesperHarness.jar")
+    from(harness.output)
+    from("harness"){ include("mod.hjson") }
+}
+
+val runDir = layout.projectDirectory.dir("run")
+val gameJar = runDir.file("Mindustry-$mindustryVersion.jar").asFile
+
+val downloadGame = tasks.register("downloadGame"){
+    group = "vesper"
+    description = "Downloads the official desktop client for $mindustryVersion into run/ (gitignored)."
+    outputs.file(gameJar)
+    onlyIf{ !gameJar.exists() }
+    doLast{
+        gameJar.parentFile.mkdirs()
+        uri("https://github.com/Anuken/Mindustry/releases/download/$mindustryVersion/Mindustry.jar").toURL().openStream().use{ input ->
+            gameJar.outputStream().use{ input.copyTo(it) }
+        }
+    }
+}
+
+tasks.register<JavaExec>("runClient"){
+    group = "vesper"
+    description = "Runs the official client with Vesper in an isolated data directory (run/data). -Pharness builds the gallery, captures screenshots and exits."
+    val withHarness = project.hasProperty("harness")
+    val dataDir = runDir.dir("data").asFile
+    val modJar = tasks.jar.flatMap{ it.archiveFile }
+    val harnessFile = harnessJar.flatMap{ it.archiveFile }
+    dependsOn(tasks.jar, downloadGame)
+    if(withHarness) dependsOn(harnessJar)
+    classpath = files(gameJar)
+    mainClass.set("mindustry.desktop.DesktopLauncher")
+    workingDir = runDir.asFile
+    jvmArgs("-Dmindustry.data.dir=${dataDir.absolutePath}")
+    if(withHarness) jvmArgs("-Dvesper.harness=true")
+    doFirst{
+        val mods = File(dataDir, "mods")
+        mods.mkdirs()
+        try{
+            mods.listFiles()?.forEach{ it.delete() }
+            modJar.get().asFile.copyTo(File(mods, "VesperDesktop.jar"), true)
+            if(withHarness) harnessFile.get().asFile.copyTo(File(mods, "VesperHarness.jar"), true)
+        }catch(e: java.io.IOException){
+            throw GradleException("Could not replace the mods in ${mods}: a Vesper test client is probably still running " +
+                "(java.exe with -Dmindustry.data.dir=${dataDir}). Close it and run again.", e)
+        }
+    }
+}
+
+tasks.register<Copy>("importGalleryMap"){
+    group = "vesper"
+    description = "Copies the gallery map produced by the harness into assets/maps."
+    from(runDir.file("data/vesper-harness/vesper-gallery.msav"))
+    into("assets/maps")
+}
+
+//the jar packs assets/, which importGalleryMap writes to
+tasks.jar{ mustRunAfter("importGalleryMap") }
+
 tasks.register<Exec>("validateSprites"){
     group = "verification"
     description = "Validates generated sprites and checks they match a fresh generation (needs Python 3 + Pillow)."

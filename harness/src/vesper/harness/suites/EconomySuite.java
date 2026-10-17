@@ -11,6 +11,7 @@ import mindustry.world.blocks.defense.turrets.ItemTurret.*;
 import mindustry.world.blocks.distribution.Conveyor.*;
 import mindustry.world.blocks.power.PowerGenerator.*;
 import mindustry.world.blocks.production.GenericCrafter.*;
+import vesper.world.DerelictReactor.*;
 import vesper.harness.*;
 
 import static mindustry.Vars.*;
@@ -84,6 +85,32 @@ public class EconomySuite implements VesperHarness.Suite{
         s.until("economy D: the kinetic turret destroys a rust crawler", () -> Groups.unit.getByID(crawlerId) == null
             || Groups.unit.getByID(crawlerId).dead(), 60f, null);
         s.check("economy D: turret survived", () -> Worlds.at(10, 8, 2) instanceof ItemTurretBuild t && t.isValid(), () -> "");
+        //E: one mixed belt carries alloy and circuits into the reactor, the way a player merges two production lines.
+        //Items enter at production-like rates (4 alloy/s, 1 circuit/s: alloy completes first); the belt must keep
+        //flowing so the circuits still arrive. The idle item sources only stand in as the belt's side inputs.
+        s.step(new Script.Step(){
+            final Item[] pattern = {structuralAlloy, structuralAlloy, structuralAlloy, structuralAlloy, recoveredCircuit};
+            int next;
+            float timer, time;
+
+            @Override
+            public boolean update(float delta){
+                ReactorBuild r = reactor();
+                Building belt = world.build(46, 31), side = world.build(46, 32);
+                if(r == null || belt == null || side == null) return true;
+                //5 items/s in a fixed 4:1 order (below the belt's ~6/s); an item that does not fit waits for the next frame
+                if((timer += delta) >= 12f && belt.acceptItem(side, pattern[next])){
+                    belt.handleItem(side, pattern[next]);
+                    next = (next + 1) % pattern.length;
+                    timer -= 12f;
+                }
+                return r.primed() || (time += delta) >= 240f * 60f;
+            }
+        });
+        s.until("economy E: a mixed belt primes the reactor without jamming", () -> reactor() != null && reactor().primed(), 1f,
+            () -> reactor() == null ? "no reactor" : "delivered " + reactor().delivered[0] + " alloy / " + reactor().delivered[1] + " circuits");
+        s.check("economy E: the reactor took exactly what it needs", () -> reactor().delivered[0] == 300 && reactor().delivered[1] == 100,
+            () -> reactor().delivered[0] + " / " + reactor().delivered[1]);
         s.run(() -> h.line("info: core after the economy suite: alloy " + core(structuralAlloy) + ", circuits " + core(recoveredCircuit)
             + ", ferroprism " + core(ferroprism) + ", carbon " + core(vitreousCarbon)));
     }
@@ -97,6 +124,10 @@ public class EconomySuite implements VesperHarness.Suite{
     static boolean rateOk(int measured, Block block, Item item){
         //warm-up costs a little at the start; anything beyond +-25% means the model in the docs is wrong
         return Math.abs(measured - expected(block, item)) <= expected(block, item) * 0.25f;
+    }
+
+    static ReactorBuild reactor(){
+        return Worlds.at(54, 30, 4) instanceof ReactorBuild r ? r : null;
     }
 
     static UnitType rustCrawler(){
@@ -203,6 +234,12 @@ public class EconomySuite implements VesperHarness.Suite{
         place(tiles, surveyDrill, 12, 32, 0);
         ore(tiles, oreConductiveScrap, 12, 27, 2, 2);
         place(tiles, scrapCollector, 12, 27, 0);
+
+        // --- E: reactor fed by one belt; the item sources are configured once the world runs
+        place(tiles, derelictReactor, 54, 30, 0);
+        line(tiles, 46, 31, 53, 31, 0);
+        place(tiles, Blocks.itemSource, 46, 32, 0);
+        place(tiles, Blocks.itemSource, 47, 30, 0);
 
         // --- D: drill -> belt west -> junction (carbon belt crossing north) -> bridge -> turret
         ore(tiles, oreFerroprism, 26, 8, 2, 2);

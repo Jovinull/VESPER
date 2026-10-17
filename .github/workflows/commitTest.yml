@@ -16,10 +16,16 @@ jobs:
       with:
         distribution: 'temurin'
         java-version: 17
-    - name: Build mod jar
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Install sprite tooling
+      run: pip install pillow==12.3.0
+    - name: Build mod jar, compile the test harness and validate sprites
       run: |
         chmod +x ./gradlew
-        ./gradlew deploy
+        ./gradlew deploy harnessJar validateSprites
     - name: Upload built jar file
       uses: actions/upload-artifact@v7
       with:

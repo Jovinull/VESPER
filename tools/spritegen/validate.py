@@ -1,7 +1,7 @@
 """Automated checks for the shipped sprites in assets/sprites.
 
     python tools/spritegen/validate.py            # validate, exit 1 on any error
-    python tools/spritegen/validate.py --stale    # also regenerate into a temp dir and require identical bytes
+    python tools/spritegen/validate.py --stale    # also regenerate into a temp dir and require identical pixels
 
 Checks: valid RGBA PNGs, expected files per catalog entry, dimensions, opacity rules per kind, outline
 margins for runtime-outlined regions, team-color-only cells, palette adherence, stray pixels, color budget,
@@ -155,6 +155,11 @@ def check_file(rep, path, e, suffix):
     return img
 
 
+def same_pixels(a, b):
+    with Image.open(a) as ia, Image.open(b) as ib:
+        return ia.size == ib.size and ia.convert("RGBA").tobytes() == ib.convert("RGBA").tobytes()
+
+
 def atlas_budget(rep):
     pages = {"environment": 0, "main": 0}
     for root, _, files in os.walk(build.SPRITES):
@@ -197,7 +202,9 @@ def main():
             stale = []
 
             def walk(d, prefix=""):
-                stale.extend(prefix + f for f in d.diff_files + d.left_only + d.right_only)
+                stale.extend(prefix + f for f in d.left_only + d.right_only)
+                # PNG bytes depend on the zlib build (Windows and Linux differ); compare decoded pixels instead
+                stale.extend(prefix + f for f in d.diff_files if not same_pixels(os.path.join(d.left, f), os.path.join(d.right, f)))
                 for name, sub in d.subdirs.items():
                     walk(sub, prefix + name + "/")
             walk(cmp)

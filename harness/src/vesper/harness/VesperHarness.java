@@ -84,6 +84,8 @@ public class VesperHarness extends Mod{
     }
 
     void start(){
+        //the test client must keep running while its window is in the background (the game pauses it by default)
+        Core.settings.put("backgroundpause", false);
         out = Core.settings.getDataDirectory().child("vesper-harness");
         out.deleteDirectory();
         out.mkdirs();
@@ -190,11 +192,15 @@ public class VesperHarness extends Mod{
         out.child("report.txt").writeString(report.toString());
         Log.info("[vesper-harness] done, exiting with status " + (failed > 0 ? 1 : 0));
         int status = failed > 0 ? 1 : 0;
-        Time.run(30f, () -> {
-            Core.settings.forceSave();
-            //System.exit from the render thread can deadlock on the backend's shutdown hooks; the report is written already
+        Core.settings.forceSave();
+        //exit from a thread of our own: System.exit on the render thread can deadlock on the backend's shutdown hooks,
+        //and a backgrounded window may stop running posted tasks. The report is written already.
+        Thread exit = new Thread(() -> {
+            Threads.sleep(500);
             Runtime.getRuntime().halt(status);
-        });
+        }, "vesper-harness-exit");
+        exit.setDaemon(false);
+        exit.start();
     }
 
     /** A group of steps testing one area. */

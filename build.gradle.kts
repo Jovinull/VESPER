@@ -1,3 +1,5 @@
+import java.time.Duration
+
 plugins{
     java
 }
@@ -99,13 +101,15 @@ val jarAndroid = tasks.register("jarAndroid"){
 
 // --- development tooling: never part of the mod artifact ---
 
-//test harness: a second mod that builds the gallery map, checks atlas regions and captures screenshots
+//test harness: a second mod that generates the maps, runs the in-game test suites and captures screenshots
 val harness: SourceSet by sourceSets.creating{
     java.setSrcDirs(listOf("harness/src"))
 }
 
 dependencies{
     "harnessCompileOnly"("Anuken:Mindustry:$mindustryVersion")
+    //suites reference Vesper content directly; at run time the Vesper mod provides it
+    "harnessCompileOnly"(sourceSets.main.get().output)
 }
 
 val harnessJar = tasks.register<Jar>("harnessJar"){
@@ -132,8 +136,11 @@ val downloadGame = tasks.register("downloadGame"){
 
 tasks.register<JavaExec>("runClient"){
     group = "vesper"
-    description = "Runs the official client with Vesper in an isolated data directory (run/data). -Pharness builds the gallery, captures screenshots and exits."
+    description = "Runs the official client with Vesper in an isolated data directory (run/data). " +
+        "-Pharness[=suite,suite] runs the in-game test suites and exits with status 1 if a check fails; -PharnessSpeed=N speeds up game time."
     val withHarness = project.hasProperty("harness")
+    val suites = (project.findProperty("harness") as String?)?.takeIf{ it.isNotBlank() } ?: "all"
+    val speed = (project.findProperty("harnessSpeed") as String?) ?: "1"
     val dataDir = runDir.dir("data").asFile
     val modJar = tasks.jar.flatMap{ it.archiveFile }
     val harnessFile = harnessJar.flatMap{ it.archiveFile }
@@ -143,7 +150,11 @@ tasks.register<JavaExec>("runClient"){
     mainClass.set("mindustry.desktop.DesktopLauncher")
     workingDir = runDir.asFile
     jvmArgs("-Dmindustry.data.dir=${dataDir.absolutePath}")
-    if(withHarness) jvmArgs("-Dvesper.harness=true")
+    if(withHarness){
+        jvmArgs("-Dvesper.harness=$suites", "-Dvesper.harness.speed=$speed")
+        //a stuck client must not hang the build
+        timeout.set(Duration.ofMinutes(90))
+    }
     doFirst{
         val mods = File(dataDir, "mods")
         mods.mkdirs()

@@ -1,0 +1,104 @@
+package vesper.harness.suites;
+
+import arc.files.*;
+import arc.graphics.g2d.*;
+import arc.struct.*;
+import arc.util.*;
+import mindustry.ctype.*;
+import mindustry.mod.Mods.*;
+import mindustry.world.blocks.environment.*;
+import vesper.content.*;
+import vesper.harness.*;
+import vesper.world.*;
+
+import java.lang.reflect.*;
+
+import static mindustry.Vars.*;
+
+/** Every Vesper content has its icons and regions, the bundled gallery is listed, and both bundles have the same keys. */
+public class ContentSuite implements VesperHarness.Suite{
+    public static final String galleryName = "Vesper Gallery", basinName = "First Awakening - The Silent Basin";
+
+    @Override
+    public void define(VesperHarness h, Script s){
+        s.run(() -> {
+            int checked = 0;
+            Seq<String> missingIcons = new Seq<>(), absent = new Seq<>();
+            for(Seq<Content> list : content.getContentMap()){
+                for(Content c : list){
+                    if(c.minfo.mod == null || !c.minfo.mod.name.equals("vesper") || !(c instanceof UnlockableContent u)) continue;
+                    checked++;
+                    if(u.fullIcon == null || !u.fullIcon.found() || u.uiIcon == null || !u.uiIcon.found()) missingIcons.add(u.name);
+                    regions(u, u.getClass(), u.name + ".", absent);
+                }
+            }
+            h.check("content icons", missingIcons.isEmpty(), checked + " contents, missing icons: " + missingIcons);
+            h.line("optional regions not present (informational): " + absent.size + " " + absent);
+
+            DerelictReactor reactor = (DerelictReactor)VBlocks.derelictReactor;
+            h.check("reactor state regions", reactor.glowRegion.found() && reactor.activeRegion.found(), "-glow and -active");
+            StaticWall wall = (StaticWall)VBlocks.machineBasaltWall;
+            h.check("basalt ridge regions", wall.variantRegions.length == 2 && wall.variantRegions[0].found() && wall.variantRegions[1].found()
+                && wall.large.found(), "2 variants + large");
+
+            for(String name : new String[]{galleryName}){
+                var map = maps.all().find(m -> m.mod != null && m.mod.name.equals("vesper") && m.name().equals(name));
+                h.check("bundled map listed: " + name, map != null, map == null ? "not found" : map.width + "x" + map.height);
+            }
+
+            LoadedMod mod = mods.getMod("vesper");
+            ObjectSet<String> en = keys(mod.root.child("bundles").child("bundle.properties"));
+            ObjectSet<String> pt = keys(mod.root.child("bundles").child("bundle_pt_BR.properties"));
+            Seq<String> onlyEn = en.toSeq().select(k -> !pt.contains(k)), onlyPt = pt.toSeq().select(k -> !en.contains(k));
+            h.check("bundles have the same keys", onlyEn.isEmpty() && onlyPt.isEmpty(),
+                en.size + " keys; missing in pt_BR: " + onlyEn + "; missing in en: " + onlyPt);
+        });
+    }
+
+    static ObjectSet<String> keys(Fi file){
+        ObjectSet<String> out = new ObjectSet<>();
+        for(String line : file.readString("UTF-8").split("\n")){
+            line = line.trim();
+            int eq = line.indexOf('=');
+            if(line.isEmpty() || line.startsWith("#") || eq < 0) continue;
+            out.add(line.substring(0, eq).trim());
+        }
+        return out;
+    }
+
+    /** Engine regions that most content legitimately leaves out. */
+    static final ObjectSet<String> optional = ObjectSet.with("customShadowRegion", "teamRegion", "teamRegions", "wreckRegions", "outlineRegion",
+        "treadRegion", "baseJointRegion", "jointRegion", "footRegion", "legRegion", "legBaseRegion", "baseRegion", "rimRegion");
+
+    /** Lists TextureRegion fields (including arrays) that resolved to nothing in the atlas. */
+    static void regions(Object owner, Class<?> type, String prefix, Seq<String> absent){
+        for(Class<?> k = type; k != null && k != Object.class; k = k.getSuperclass()){
+            for(Field f : k.getDeclaredFields()){
+                if(Modifier.isStatic(f.getModifiers())) continue;
+                Class<?> ft = f.getType();
+                while(ft.isArray()) ft = ft.getComponentType();
+                if(!TextureRegion.class.isAssignableFrom(ft) || optional.contains(f.getName())) continue;
+                try{
+                    f.setAccessible(true);
+                    collect(f.get(owner), prefix + f.getName(), absent);
+                }catch(Throwable ignored){
+                }
+            }
+        }
+    }
+
+    static void collect(@Nullable Object value, String name, Seq<String> absent){
+        if(value == null) return;
+        if(value instanceof TextureAtlas.AtlasRegion r){
+            if(!r.found()) absent.add(name);
+        }else if(value.getClass().isArray()){
+            int len = Array.getLength(value), missing = 0;
+            for(int i = 0; i < len; i++){
+                Object v = Array.get(value, i);
+                if(v instanceof TextureAtlas.AtlasRegion r && !r.found()) missing++;
+                else if(v != null && v.getClass().isArray()) collect(v, name + "[" + i + "]", absent);
+            }
+            if(missing > 0) absent.add(name + "(" + missing + "/" + len + ")");
+        }
+    }
+}

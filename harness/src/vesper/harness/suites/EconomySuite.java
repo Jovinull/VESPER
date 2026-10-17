@@ -84,8 +84,8 @@ public class EconomySuite implements VesperHarness.Suite{
         s.until("economy D: the kinetic turret destroys a rust crawler", () -> Groups.unit.getByID(crawlerId) == null
             || Groups.unit.getByID(crawlerId).dead(), 60f, null);
         s.check("economy D: turret survived", () -> Worlds.at(10, 8, 2) instanceof ItemTurretBuild t && t.isValid(), () -> "");
-        s.check("economy: production report", () -> true, () -> "core after the suite: alloy " + core(structuralAlloy) + ", circuits " + core(recoveredCircuit)
-            + ", ferroprism " + core(ferroprism) + ", carbon " + core(vitreousCarbon));
+        s.run(() -> h.line("info: core after the economy suite: alloy " + core(structuralAlloy) + ", circuits " + core(recoveredCircuit)
+            + ", ferroprism " + core(ferroprism) + ", carbon " + core(vitreousCarbon)));
     }
 
     /** Items a fully covered drill makes in 60 s, from Drill.getDrillTime (60 ticks per second). */

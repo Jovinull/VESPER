@@ -202,8 +202,7 @@ public class MissionSuite implements VesperHarness.Suite{
         // --- the hold: the fifth wave waits for the awakening
         s.until("mission: waves 1-4 survived and the final waves hold", () -> state.wave >= FirstAwakening.holdWave && state.enemies == 0
             && !state.rules.waveTimer && !state.rules.waveSending, 900f, () -> "wave " + state.wave + ", enemies " + state.enemies + ", t=" + minutes());
-        s.check("mission: base losses so far", () -> team.core() != null, () -> "lost " + lost + ", activity " + (int)Vesper.activity.level
-            + " " + Vesper.activity.stage);
+        s.run(() -> h.line("info: base losses before the awakening: " + lost + ", activity " + (int)Vesper.activity.level + " " + Vesper.activity.stage));
 
         // --- ignition and the awakening
         s.run(() -> {
@@ -263,8 +262,8 @@ public class MissionSuite implements VesperHarness.Suite{
         });
         s.until("mission: VICTORY - the game declares First Awakening won", () -> h.lastWinner == state.rules.defaultTeam, 900f,
             () -> "wave " + state.wave + ", enemies " + state.enemies + ", core " + (team.core() == null ? "lost" : (int)team.core().health + " hp"));
-        s.check("mission: duration and losses", () -> true, () -> "won at " + minutes() + " game minutes; buildings lost " + lost
-            + "; peak activity " + (int)maxActivity);
+        s.run(() -> h.line("info: won after " + minutes() + " of game time; buildings lost " + lost
+            + "; peak activity " + (int)maxActivity));
         s.check("mission: final objective marked complete", () -> Vesper.mission.victory && Vesper.mission.current() == null, () -> "");
         //the mission's own announcement first, then the native game over dialog (it opens 3 s after the win)
         h.shot("mission-06-victory-announcement", 30, 30, 2f, true);

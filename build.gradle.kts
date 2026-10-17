@@ -1,4 +1,5 @@
 import java.time.Duration
+import java.util.concurrent.TimeUnit
 
 plugins{
     java
@@ -214,6 +215,52 @@ tasks.register<JavaExec>("runServer"){
         mods.listFiles()?.forEach{ it.delete() }
         modJar.get().asFile.copyTo(File(mods, "VesperDesktop.jar"), true)
         harnessFile.get().asFile.copyTo(File(mods, "VesperHarness.jar"), true)
+    }
+}
+
+tasks.register("runMultiplayer"){
+    group = "vesper"
+    description = "Local multiplayer test: the dedicated server hosts First Awakening and two clients join (run/mp). " +
+        "The server records the checks; fails if any check fails. Only the processes started here are stopped."
+    val modJar = tasks.jar.flatMap{ it.archiveFile }
+    val harnessFile = harnessJar.flatMap{ it.archiveFile }
+    dependsOn(tasks.jar, harnessJar, downloadGame, downloadServer)
+    doLast{
+        val mp = runDir.dir("mp").asFile
+        val port = "6577"
+        val java = File(System.getProperty("java.home"), "bin/java").absolutePath
+        mp.deleteRecursively()
+        val serverWork = File(mp, "server")
+        val modDirs = listOf(File(serverWork, "config/mods"), File(mp, "alpha/mods"), File(mp, "bravo/mods"))
+        modDirs.forEach{ dir ->
+            dir.mkdirs()
+            modJar.get().asFile.copyTo(File(dir, "VesperDesktop.jar"), true)
+            harnessFile.get().asFile.copyTo(File(dir, "VesperHarness.jar"), true)
+        }
+        val started = mutableListOf<Process>()
+        fun launch(log: String, dir: File, vararg args: String): Process =
+            ProcessBuilder(java, *args).directory(dir).redirectErrorStream(true).redirectOutput(File(mp, log)).start().also{ started.add(it) }
+        try{
+            val server = launch("server.log", serverWork, "-Dvesper.harness=mp-host", "-Dvesper.mp.port=$port",
+                "-cp", serverJar.absolutePath, "mindustry.server.ServerLauncher")
+            val serverLog = File(mp, "server.log")
+            val hostBy = System.currentTimeMillis() + 180_000
+            while(!(serverLog.exists() && serverLog.readText().contains("mp: hosting"))){
+                if(!server.isAlive || System.currentTimeMillis() > hostBy) throw GradleException("The server did not start hosting; see ${serverLog}")
+                Thread.sleep(500)
+            }
+            for(name in listOf("Alpha", "Bravo")){
+                launch("${name.lowercase()}.log", runDir.asFile, "-Dmindustry.data.dir=${File(mp, name.lowercase()).absolutePath}",
+                    "-Dvesper.harness=mp-client", "-Dvesper.mp.name=$name", "-Dvesper.mp.port=$port",
+                    "-cp", gameJar.absolutePath, "mindustry.desktop.DesktopLauncher")
+                Thread.sleep(8_000)
+            }
+            if(!server.waitFor(30, TimeUnit.MINUTES)) throw GradleException("The multiplayer test timed out")
+            started.drop(1).forEach{ it.waitFor(60, TimeUnit.SECONDS) }
+            if(server.exitValue() != 0) throw GradleException("Multiplayer checks failed; see ${File(serverWork, "config/vesper-harness/report.txt")}")
+        }finally{
+            started.filter{ it.isAlive }.forEach{ it.destroy() }
+        }
     }
 }
 

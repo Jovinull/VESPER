@@ -74,10 +74,10 @@ public class VUnits{
 
         ancientSentinel = new UnitType("ancient-sentinel"){{
             constructor = MechUnit::create;
-            speed = 0.5f;
+            speed = 0.42f;
             hitSize = 13f;
-            health = 600f;
-            armor = 4f;
+            health = 640f;
+            armor = 5f;
             mechFrontSway = 0.55f;
             mechStepParticles = true;
 
@@ -85,13 +85,13 @@ public class VUnits{
                 x = 6f;
                 y = 0.5f;
                 top = false;
-                reload = 26f;
+                reload = 40f;
                 recoil = 2f;
                 ejectEffect = Fx.casing1;
-                bullet = new BasicBulletType(3f, 20f){{
+                bullet = new BasicBulletType(2.8f, 18f){{
                     width = 9f;
                     height = 11f;
-                    lifetime = 55f;
+                    lifetime = 50f;
                     frontColor = VPal.dangerLight;
                     backColor = VPal.danger;
                 }};
@@ -100,10 +100,10 @@ public class VUnits{
 
         rustCrawler = new UnitType("rust-crawler"){{
             constructor = LegsUnit::create;
-            speed = 0.6f;
+            speed = 0.55f;
             hitSize = 13f;
-            health = 480f;
-            armor = 3f;
+            health = 300f;
+            armor = 2f;
             legCount = 4;
             legLength = 10f;
             legForwardScl = 0.6f;
@@ -117,9 +117,9 @@ public class VUnits{
                 x = 0f;
                 y = 6f;
                 mirror = false;
-                reload = 40f;
-                bullet = new LaserBoltBulletType(3.5f, 14f){{
-                    lifetime = 40f;
+                reload = 30f;
+                bullet = new LaserBoltBulletType(3.2f, 10f){{
+                    lifetime = 38f;
                     frontColor = VPal.dangerLight;
                     backColor = VPal.danger;
                 }};

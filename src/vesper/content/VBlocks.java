@@ -27,7 +27,7 @@ import static vesper.content.VItems.*;
 public class VBlocks{
     public static Block
     //environment (declaration order sets floor edge priority)
-    machineBasalt, scrapSoil, vitrifiedDust, rustedPlating,
+    machineBasalt, scrapSoil, vitrifiedDust, rustedPlating, machineBasaltWall,
     oreFerroprism, oreConductiveScrap, oreResonanceCrystal, oreVitreousCarbon,
 
     //logistics
@@ -51,6 +51,10 @@ public class VBlocks{
         scrapSoil = new Floor("scrap-soil", 3);
         vitrifiedDust = new Floor("vitrified-dust", 3);
         rustedPlating = new Floor("rusted-plating", 3);
+        machineBasaltWall = new StaticWall("machine-basalt-wall"){{
+            variants = 2;
+        }};
+        ((Floor)machineBasalt).wall = machineBasaltWall;
 
         oreFerroprism = new OreBlock("ore-ferroprism", ferroprism){{ variants = 2; }};
         oreConductiveScrap = new OreBlock("ore-conductive-scrap", conductiveScrap){{ variants = 2; }};

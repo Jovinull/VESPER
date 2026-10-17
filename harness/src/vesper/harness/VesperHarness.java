@@ -115,6 +115,8 @@ public class VesperHarness extends Mod{
                 case "defeat" -> new DefeatSuite();
                 case "gallery" -> new GallerySuite();
                 case "ui" -> new UiSuite();
+                case "mp-host" -> new MultiplayerHost();
+                case "mp-client" -> new MultiplayerClient();
                 default -> null;
             };
             if(suite == null){
@@ -180,6 +182,14 @@ public class VesperHarness extends Mod{
                 return pendingShot == null;
             }
         });
+    }
+
+    /** Captures on the next frame, outside the script (for actions requested over the network). */
+    public void captureNow(String name, boolean ui){
+        if(headless || pendingShot != null) return;
+        pendingShot = name;
+        pendingUi = ui;
+        pendingFrames = 2;
     }
 
     void capture(){

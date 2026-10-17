@@ -145,12 +145,25 @@ public class DerelictReactor extends PowerGenerator{
 
         @Override
         public boolean acceptItem(Building source, Item item){
-            return remaining(item) > 0;
+            //once one material is complete a mixed belt would jam in front of the reactor; keep taking restoration
+            //materials until ignition and burn the surplus, as the core does
+            return !ignited && restores(item);
+        }
+
+        public boolean restores(Item item){
+            for(ItemStack stack : restoration){
+                if(stack.item == item) return true;
+            }
+            return false;
         }
 
         @Override
         public void handleItem(Building source, Item item){
-            add(item, 1);
+            if(remaining(item) > 0){
+                add(item, 1);
+            }else if(Mathf.chance(0.3)){
+                Fx.fuelburn.at(x + Mathf.range(size * 3f), y + Mathf.range(size * 3f));
+            }
         }
 
         @Override

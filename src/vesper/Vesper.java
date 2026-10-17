@@ -2,15 +2,18 @@ package vesper;
 
 import mindustry.mod.*;
 import vesper.content.*;
+import vesper.mission.*;
 import vesper.systems.*;
 
 public class Vesper extends Mod{
     /** World systems. They live for the whole session; their state belongs to the current world only. */
     public static PlanetaryActivity activity;
+    public static FirstAwakening mission;
 
     @Override
     public void init(){
         activity = new PlanetaryActivity();
+        mission = new FirstAwakening();
     }
 
     @Override

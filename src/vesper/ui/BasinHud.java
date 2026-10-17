@@ -30,7 +30,7 @@ public class BasinHud{
 
     private boolean seen;
     private Stage lastStage = Stage.dormant;
-    private boolean lastPending, lastReleased, lastVictory;
+    private boolean lastPending, lastReleased, lastVictory, lastHolding;
     private int lastCompleted;
     private float effectTimer;
     /** Announcements wait for the previous one, so two state changes in a row never overlap on screen. */
@@ -112,6 +112,9 @@ public class BasinHud{
         if(!activity.awakened && reactor != null && reactor.primed() && !reactor.ignited){
             return Core.bundle.format("vesper.activity.hint.ignite", activity.awakeningSentinels() + activity.awakeningCrawlers());
         }
+        if(mission.holding()){
+            return Core.bundle.get("vesper.mission.hold");
+        }
         if(!activity.awakened && activity.stage == Stage.stirring){
             return Core.bundle.get("vesper.activity.hint.stirring");
         }
@@ -134,6 +137,7 @@ public class BasinHud{
             lastCompleted = mission.completed;
             lastReleased = mission.released;
             lastVictory = mission.victory;
+            lastHolding = mission.holding();
             return;
         }
 
@@ -155,6 +159,9 @@ public class BasinHud{
         if(mission.released && !lastReleased){
             announcements.add(Core.bundle.get("vesper.mission.final"));
         }
+        if(mission.holding() && !lastHolding){
+            ui.hudfrag.showToast(Icon.warning, Core.bundle.get("vesper.mission.hold.toast"));
+        }
         if(mission.victory && !lastVictory){
             //the native game over dialog only says "game over"; say what was won first
             announcements.clear();
@@ -167,6 +174,7 @@ public class BasinHud{
         lastCompleted = mission.completed;
         lastReleased = mission.released;
         lastVictory = mission.victory;
+        lastHolding = mission.holding();
 
         if(!announcements.isEmpty() && Time.globalTime >= announceUntil){
             ui.announce(announcements.remove(0), announceSeconds);

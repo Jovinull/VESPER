@@ -106,6 +106,11 @@ public class FirstAwakening{
         return list.isEmpty() ? null : (ReactorBuild)list.first();
     }
 
+    /** Whether the final waves are being held right now (shown by the HUD; synced through the wave rules). */
+    public boolean holding(){
+        return active() && !Vesper.activity.awakened && state.wave >= holdWave && !state.rules.waveTimer;
+    }
+
     private void update(){
         if(!state.isGame()) return;
         if(state.rules != bound) bind();

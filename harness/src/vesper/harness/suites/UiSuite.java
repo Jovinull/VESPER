@@ -6,27 +6,40 @@ import arc.scene.*;
 import arc.scene.ui.layout.*;
 import arc.struct.*;
 import arc.util.*;
+import mindustry.content.*;
 import mindustry.game.*;
 import mindustry.gen.*;
 import vesper.*;
 import vesper.harness.*;
+import vesper.systems.PlanetaryActivity.*;
 import vesper.world.DerelictReactor.*;
 
 import static mindustry.Vars.*;
+import static vesper.content.VBlocks.*;
 import static vesper.content.VItems.*;
 
 /**
  * HUD inspection, not gameplay: the mission state is set directly (reactor filled, wave counter moved, victory
- * forced) to show each HUD state quickly. Run it per window size and language (-PharnessWindow=1280x720
+ * forced; on Resonance Fault a stabilizer and extractors placed and the activity surge held) to show each HUD state
+ * quickly, including the tallest panel (a patrol and a pulse announced at once). Run it per window size and language (-PharnessWindow=1280x720
  * -PharnessLocale=pt_BR); each state is captured and the panel must stay on screen without covering any vanilla
  * HUD element (wave panel, minimap, build menu...).
  */
 public class UiSuite implements VesperHarness.Suite{
     String tag = "";
+    /** Fixture: while >= 0 the activity surge is held here (to reach a state quickly). */
+    float holdShock = -1f;
+    boolean listening;
 
     @Override
     public void define(VesperHarness h, Script s){
         if(headless) return;
+        if(!listening){
+            listening = true;
+            Events.run(EventType.Trigger.update, () -> {
+                if(holdShock >= 0f && Vesper.activity.active()) Vesper.activity.shock = holdShock;
+            });
+        }
         s.run(() -> {
             String window = System.getProperty("vesper.harness.window", "");
             String[] wh = window.split("x");
@@ -70,6 +83,45 @@ public class UiSuite implements VesperHarness.Suite{
         state(h, s, "4-victory");
         s.run(() -> {
             if(ui.restart.isShown()) ui.restart.hide();
+        });
+
+        //Resonance Fault: the planetary response lines (stabilization, resonance multiplier, pulse and patrol warnings)
+        s.run(() -> {
+            Worlds.play(Worlds.bundled(ContentSuite.faultName), Gamemode.survival);
+            Team team = state.rules.defaultTeam;
+            world.tile(MultiplayerHost.powerX, MultiplayerHost.powerY).setBlock(Blocks.powerSource, team, 0);
+            world.tile(MultiplayerHost.stabilizerX, MultiplayerHost.stabilizerY).setBlock(stabilizerPylon, team, 0);
+            for(int[] e : MultiplayerHost.faultExtractors) world.tile(e[0], e[1]).setBlock(crystalExtractor, team, 0);
+            for(int[] v : MultiplayerHost.faultSinks) world.tile(v[0], v[1]).setBlock(Blocks.itemVoid, team, 0);
+        });
+        s.wait(0.5f);
+        s.run(() -> {
+            Building source = world.build(MultiplayerHost.powerX, MultiplayerHost.powerY);
+            source.configure(world.build(MultiplayerHost.stabilizerX, MultiplayerHost.stabilizerY).pos());
+            for(int[] e : MultiplayerHost.faultExtractors) source.configure(world.build(e[0], e[1]).pos());
+            holdShock = 10f;
+        });
+        s.wait(3f);
+        s.check("ui: Resonance Fault shows its mission and the stabilization", () -> Vesper.scenario() == Vesper.fault && Vesper.activity.stabilization > 11f, () -> "");
+        state(h, s, "5-fault-start");
+        s.run(() -> {
+            holdShock = 60f;
+            Vesper.activity.pulseCooldown = 0f;
+        });
+        s.waitFor(() -> Vesper.activity.pulsePending > 0f, 40f);
+        s.wait(1f);
+        state(h, s, "6-fault-pulse-warning");
+        s.run(() -> {
+            holdShock = 90f;
+            Vesper.activity.cooldown = 0f;
+        });
+        s.waitFor(() -> Vesper.activity.stage == Stage.awakened && Vesper.activity.pending > 0f && Vesper.activity.pulsePending > 0f, 40f);
+        s.wait(1f);
+        s.check("ui: a patrol and a pulse announced together", () -> Vesper.activity.pending > 0f && Vesper.activity.pulsePending > 0f, () -> "");
+        state(h, s, "7-fault-patrol-and-pulse");
+        s.run(() -> {
+            holdShock = -1f;
+            Groups.unit.each(u -> u.team == state.rules.waveTeam, Unit::kill);
         });
     }
 

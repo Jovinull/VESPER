@@ -1,5 +1,7 @@
 package vesper.graphics;
 
+import arc.*;
+import arc.graphics.*;
 import arc.graphics.g2d.*;
 import arc.math.*;
 import mindustry.entities.*;
@@ -17,6 +19,38 @@ public class VFx{
         Lines.stroke(2.5f * e.fout());
         Lines.circle(e.x, e.y, reach * 0.3f + e.finpow() * reach * 2.4f);
         Angles.randLenVectors(e.id, 28, reach * 0.4f + e.finpow() * reach * 3.4f, (x, y) -> Fill.square(e.x + x, e.y + y, 3f * e.fout(), 45f));
+        Draw.reset();
+    }),
+
+    /** Where an announced resonance pulse will land: the shock ring closing onto the epicentre. e.rotation is the radius. */
+    pulseWarning = new Effect(60f, 500f, e -> {
+        TextureRegion ring = Core.atlas.find("vesper-energy-pulse");
+        float r = e.rotation * 2f * (1.15f - e.fin() * 0.35f);
+        Draw.color(VPal.resonanceLight, VPal.resonance, e.fin());
+        Draw.alpha(0.75f * e.fslope());
+        Draw.rect(ring, e.x, e.y, r, r);
+        Lines.stroke(1.5f * e.fslope());
+        Lines.circle(e.x, e.y, e.rotation);
+        Draw.reset();
+    }),
+
+    /** A resonance pulse landing: the ring sweeps out to its radius and sheds crystal sparks. e.rotation is the radius. */
+    pulseImpact = new Effect(90f, 600f, e -> {
+        TextureRegion ring = Core.atlas.find("vesper-energy-pulse");
+        float r = e.rotation * 2f * e.finpow();
+        Draw.color(Color.white, VPal.resonance, e.fin());
+        Draw.alpha(e.fout());
+        Draw.rect(ring, e.x, e.y, r, r);
+        Angles.randLenVectors(e.id, 24, e.rotation * e.finpow(), (x, y) -> Fill.square(e.x + x, e.y + y, 2.5f * e.fout(), 45f));
+        Draw.reset();
+    }),
+
+    /** The area of a pulse in progress, breathing faintly. e.rotation is the radius. */
+    pulseField = new Effect(60f, 500f, e -> {
+        Draw.color(VPal.resonance);
+        Draw.alpha(0.35f * e.fslope());
+        Lines.stroke(2f);
+        Lines.circle(e.x, e.y, e.rotation);
         Draw.reset();
     }),
 

@@ -92,7 +92,7 @@ public class VBlocks{
         }};
 
         resonanceLink = new PowerNode("resonance-link"){{
-            requirements(Category.power, with(ferroprism, 2, resonanceCrystal, 2));
+            requirements(Category.power, with(ferroprism, 3, conductiveScrap, 3));
             maxNodes = 8;
             laserRange = 7f;
             laserColor1 = VPal.resonanceLight;

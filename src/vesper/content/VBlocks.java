@@ -335,11 +335,11 @@ public class VBlocks{
             ignitionEffect = VFx.reactorIgnition;
         }};
 
-        stabilizerPylon = new AncientStructure("stabilizer-pylon"){{
-            requirements(Category.effect, BuildVisibility.sandboxOnly, with(structuralAlloy, 60));
+        stabilizerPylon = new Stabilizer("stabilizer-pylon"){{
+            requirements(Category.effect, with(ferroprism, 40, structuralAlloy, 30, recoveredCircuit, 20));
             size = 2;
             health = 1600;
-            pulseScale = 25f;
+            consumePower(1f);
         }};
 
         dataTerminal = new AncientStructure("data-terminal"){{

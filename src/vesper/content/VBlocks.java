@@ -26,7 +26,9 @@ import static vesper.content.VItems.*;
 
 /**
  * The Silent Basin content. Values are balanced for First Awakening: every recipe is reachable from ferroprism,
- * conductive scrap and vitreous carbon; resonance crystal is an optional late resource (pulse turret).
+ * conductive scrap and vitreous carbon; resonance crystal is an optional late resource (pulse turret). Resonance
+ * machines (crystal extractor, experimental resonator) speed up with planetary activity; the stabilizer pylon
+ * holds it down. Both only matter on maps that enable planetary activity.
  */
 public class VBlocks{
     public static Block
@@ -130,7 +132,7 @@ public class VBlocks{
             rotateSpeed = 1.6f;
         }};
 
-        crystalExtractor = new Drill("crystal-extractor"){{
+        crystalExtractor = new ResonantDrill("crystal-extractor"){{
             requirements(Category.production, with(ferroprism, 30, recoveredCircuit, 10));
             size = 2;
             tier = 3;
@@ -210,7 +212,7 @@ public class VBlocks{
             }}, new DrawRegion("-top"));
         }};
 
-        experimentalResonator = new GenericCrafter("experimental-resonator"){{
+        experimentalResonator = new ResonantCrafter("experimental-resonator"){{
             requirements(Category.crafting, with(structuralAlloy, 60, recoveredCircuit, 40, resonanceCrystal, 30));
             size = 3;
             craftTime = 120f;
@@ -369,5 +371,6 @@ public class VBlocks{
         weights.put(componentAssembler, 5f);
         weights.put(reinforcedDrill, 2f);
         weights.put(crystalExtractor, 4f);
+        PlanetaryActivity.resonant.addAll(crystalExtractor, experimentalResonator);
     }
 }

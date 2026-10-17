@@ -54,7 +54,9 @@ public class BasinHud{
     private void build(){
         ui.hudGroup.fill(t -> {
             t.name = "vesper-basin";
-            t.top().right().marginTop(230f).marginRight(4f);
+            //left edge, vertically centred: clear of the wave panel (top left), the minimap (top right) and the build
+            //menu (bottom right) at every window size the UI suite checks
+            t.left().marginLeft(4f);
             t.visible(this::visible);
             t.table(Styles.black6, p -> {
                 p.margin(8f).defaults().left().width(270f);
@@ -70,11 +72,8 @@ public class BasinHud{
                     () -> stageColor(activity.stage),
                     activity::fraction)).height(26f).padTop(3f).visible(activity::active);
                 p.row();
-                p.label(this::warningText).wrap().padTop(6f).color(VPal.dangerLight)
-                    .visible(() -> activity.active() && activity.pending > 0f);
-                p.row();
-                p.label(this::hintText).wrap().padTop(6f).color(Color.lightGray)
-                    .visible(() -> activity.active() && activity.pending <= 0f && !hintText().isEmpty());
+                //one line for the threat countdown or, when nothing is coming, the next consequence (no empty gap between)
+                p.label(this::footerText).wrap().padTop(6f).visible(activity::active);
             }).touchable(arc.scene.event.Touchable.enabled).get()
                 .clicked(() -> ui.showInfoText("@vesper.activity.title", "@vesper.activity.help"));
         });
@@ -94,6 +93,12 @@ public class BasinHud{
         String progress = objective.progress == null ? "" : objective.progress.get();
         return Core.bundle.format("vesper.objective.line", mission.completed + 1, mission.objectives.size, objective.text())
             + (progress.isEmpty() ? "" : " [lightgray]" + progress);
+    }
+
+    private String footerText(){
+        if(activity.pending > 0f) return "[#" + VPal.dangerLight + "]" + warningText();
+        String hint = hintText();
+        return hint.isEmpty() ? "" : "[lightgray]" + hint;
     }
 
     private String warningText(){

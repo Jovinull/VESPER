@@ -230,7 +230,7 @@ public class VBlocks{
             drawer = new DrawMulti(new DrawDefault(), new DrawRegion("-top"));
         }};
 
-        int wallHealth = 110 * 4;
+        int wallHealth = 120 * 4;
         reinforcedWall = new Wall("reinforced-wall"){{
             requirements(Category.defense, with(structuralAlloy, 6));
             health = wallHealth;
@@ -243,27 +243,29 @@ public class VBlocks{
         }};
 
         kineticTurret = new ItemTurret("kinetic-turret"){{
-            requirements(Category.turret, with(ferroprism, 45, structuralAlloy, 20));
+            requirements(Category.turret, with(ferroprism, 40, conductiveScrap, 20));
             size = 2;
             health = 900;
-            range = 190f;
-            reload = 18f;
+            range = 180f;
+            reload = 20f;
             recoil = 2f;
             shootY = 8f;
             rotateSpeed = 8f;
             shootCone = 12f;
             ammo(
-                ferroprism, new BasicBulletType(3.2f, 18f){{
+                ferroprism, new BasicBulletType(3.2f, 16f){{
                     width = 8f;
                     height = 10f;
                     lifetime = 60f;
+                    ammoMultiplier = 3f;
                     frontColor = VPal.industrialLight;
                     backColor = VPal.industrial;
                 }},
-                structuralAlloy, new BasicBulletType(3.6f, 30f){{
+                structuralAlloy, new BasicBulletType(3.6f, 28f){{
                     width = 9f;
                     height = 12f;
                     lifetime = 55f;
+                    ammoMultiplier = 4f;
                     pierce = true;
                     pierceCap = 2;
                     frontColor = Color.white;
@@ -273,17 +275,17 @@ public class VBlocks{
         }};
 
         pulseTurret = new PowerTurret("pulse-turret"){{
-            requirements(Category.turret, with(ferroprism, 40, resonanceCrystal, 25));
+            requirements(Category.turret, with(structuralAlloy, 30, resonanceCrystal, 15));
             size = 2;
             health = 820;
-            range = 165f;
-            reload = 30f;
+            range = 175f;
+            reload = 24f;
             recoil = 1.5f;
             shootY = 10f;
             heatColor = VPal.resonance;
             shootSound = Sounds.shootLaser;
-            consumePower(3.5f);
-            shootType = new LaserBoltBulletType(5.2f, 16f){{
+            consumePower(2.5f);
+            shootType = new LaserBoltBulletType(5.2f, 20f){{
                 lifetime = 34f;
                 healPercent = 0f;
                 frontColor = Color.white;
@@ -316,7 +318,8 @@ public class VBlocks{
             alwaysUnlocked = true;
             isFirstTier = true;
             unitType = VUnits.maintenanceDrone;
-            health = 1200;
+            health = 2800;
+            armor = 2f;
             itemCapacity = 4000;
             size = 3;
             unitCapModifier = 8;

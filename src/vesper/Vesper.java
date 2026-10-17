@@ -4,6 +4,9 @@ import mindustry.mod.*;
 import vesper.content.*;
 import vesper.mission.*;
 import vesper.systems.*;
+import vesper.ui.*;
+
+import static mindustry.Vars.*;
 
 public class Vesper extends Mod{
     /** World systems. They live for the whole session; their state belongs to the current world only. */
@@ -14,6 +17,7 @@ public class Vesper extends Mod{
     public void init(){
         activity = new PlanetaryActivity();
         mission = new FirstAwakening();
+        if(!headless) new BasinHud();
     }
 
     @Override

@@ -117,6 +117,8 @@ val harnessJar = tasks.register<Jar>("harnessJar"){
     archiveFileName.set("VesperHarness.jar")
     from(harness.output)
     from("harness"){ include("mod.hjson") }
+    //test fixtures (a save written by 0.2.0-alpha)
+    from("harness/assets")
 }
 
 val runDir = layout.projectDirectory.dir("run")

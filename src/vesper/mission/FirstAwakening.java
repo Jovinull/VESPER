@@ -1,7 +1,6 @@
 package vesper.mission;
 
 import arc.*;
-import arc.func.*;
 import arc.struct.*;
 import arc.util.*;
 import mindustry.game.*;
@@ -26,7 +25,7 @@ import static mindustry.Vars.*;
  * Native map objectives are not used: while one is displayed, the HUD hides the wave countdown, which this
  * mission needs. Only maps tagged {@code vesper.scenario=first-awakening} are affected.
  */
-public class FirstAwakening{
+public class FirstAwakening implements Scenario{
     public static final String tagScenario = "vesper.scenario", scenarioId = "first-awakening", tagState = "vesper.mission";
     /** Value of {@code state.wave} (the HUD's wave counter) at which the timer holds until the awakening. */
     public static final int holdWave = 5;
@@ -34,22 +33,6 @@ public class FirstAwakening{
     public static final int attackWaves = 6;
     /** Countdown to the fifth wave once the basin awakens, so the awakening response arrives first. */
     public static final float releaseDelay = 75f * 60f;
-
-    public static class Objective{
-        public final String key;
-        public final Boolp done;
-        public final @Nullable Prov<String> progress;
-
-        Objective(String key, Boolp done, @Nullable Prov<String> progress){
-            this.key = key;
-            this.done = done;
-            this.progress = progress;
-        }
-
-        public String text(){
-            return Core.bundle.get("vesper.objective." + key);
-        }
-    }
 
     public final Seq<Objective> objectives = new Seq<>();
     /** Number of completed objectives; the next one is objectives.get(completed). */
@@ -92,12 +75,29 @@ public class FirstAwakening{
             () -> Math.min(state.rules.defaultTeam.data().getBuildings(block).size, amount) + "/" + amount));
     }
 
+    @Override
     public boolean active(){
         return active && bound == state.rules && state.isGame();
     }
 
-    public @Nullable Objective current(){
-        return completed < objectives.size ? objectives.get(completed) : null;
+    @Override
+    public String key(){
+        return "vesper.mission";
+    }
+
+    @Override
+    public Seq<Objective> objectives(){
+        return objectives;
+    }
+
+    @Override
+    public int completed(){
+        return completed;
+    }
+
+    @Override
+    public boolean victory(){
+        return victory;
     }
 
     /** The scenario's reactor, if the map has one. */

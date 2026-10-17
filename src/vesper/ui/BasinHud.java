@@ -16,6 +16,7 @@ import vesper.graphics.*;
 import vesper.mission.*;
 import vesper.systems.*;
 import vesper.systems.PlanetaryActivity.*;
+import vesper.world.*;
 
 import static mindustry.Vars.*;
 
@@ -65,12 +66,16 @@ public class BasinHud{
                 p.row();
                 p.label(this::objectiveText).wrap().padTop(4f).visible(mission::active);
                 p.row();
-                p.add("@vesper.activity.title").color(Color.lightGray).padTop(8f).visible(() -> activity.active() && mission.active());
+                p.label(() -> Core.bundle.get("vesper.activity.title") + " [accent](?)").color(Color.lightGray).padTop(8f)
+                    .visible(() -> activity.active() && mission.active());
                 p.row();
                 p.add(new Bar(
                     () -> Core.bundle.format("vesper.activity.bar", (int)activity.level, activity.stage.localized()),
                     () -> stageColor(activity.stage),
                     activity::fraction)).height(26f).padTop(3f).visible(activity::active);
+                p.row();
+                p.label(() -> Core.bundle.format("vesper.activity.sources", (int)activity.industry, (int)(activity.ancient + activity.shock)))
+                    .color(Color.lightGray).fontScale(0.85f).wrap().padTop(2f).visible(activity::active);
                 p.row();
                 //one line for the threat countdown or, when nothing is coming, the next consequence (no empty gap between)
                 p.label(this::footerText).wrap().padTop(6f).visible(activity::active);
@@ -110,7 +115,9 @@ public class BasinHud{
     private String hintText(){
         var reactor = mission.reactor();
         if(!activity.awakened && reactor != null && reactor.primed() && !reactor.ignited){
-            return Core.bundle.format("vesper.activity.hint.ignite", activity.awakeningSentinels() + activity.awakeningCrawlers());
+            float power = ((DerelictReactor)reactor.block).powerProduction * 60f;
+            return Core.bundle.format("vesper.activity.hint.ignite", activity.awakeningSentinels() + activity.awakeningCrawlers(),
+                (int)(power * 0.5f), (int)(power * 1.5f));
         }
         if(mission.holding()){
             return Core.bundle.get("vesper.mission.hold");

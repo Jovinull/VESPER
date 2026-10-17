@@ -203,6 +203,14 @@ public class MissionSuite implements VesperHarness.Suite{
         // --- the hold: the fifth wave waits for the awakening
         s.until("mission: waves 1-4 survived and the final waves hold", () -> state.wave >= FirstAwakening.holdWave && state.enemies == 0
             && !state.rules.waveTimer && !state.rules.waveSending, 900f, () -> "wave " + state.wave + ", enemies " + state.enemies + ", t=" + minutes());
+        s.check("mission: the held fifth wave is reported to the HUD", () -> Vesper.mission.holding(), () -> "holding=" + Vesper.mission.holding());
+        h.shot("mission-03a-hold-explained", 30, 30, 2f, true);
+        //the ignite button, as the player sees it when tapping the primed reactor
+        if(!headless){
+            s.run(() -> control.input.config.showConfig(reactor()));
+            h.shot("mission-03b-ignite-button", 26, 79, 4f, true);
+            s.run(() -> control.input.config.hideConfig());
+        }
         s.run(() -> h.line("info: base losses before the awakening: " + lost + ", activity " + (int)Vesper.activity.level + " " + Vesper.activity.stage));
 
         // --- ignition and the awakening

@@ -75,7 +75,8 @@ public class MissionSuite implements VesperHarness.Suite{
         s.check("mission: native waves on, victory not armed yet", () -> state.rules.waves && state.rules.waveTimer && state.rules.winWave == 0,
             () -> "first wave in " + (int)(state.wavetime / 60f) + " s, " + state.rules.spawns.size + " spawn groups");
         s.check("mission: Vesper systems active only here", () -> Vesper.activity.active() && Vesper.mission.active() && Vesper.mission.completed == 0, () -> "");
-        s.check("mission: HUD panel and reactor marker present", () -> ui.hudGroup.find("vesper-basin") != null && state.markers.size() >= 1, () -> "");
+        s.check("mission: reactor marker present", () -> state.markers.size() >= 1, () -> "");
+        if(!headless) s.check("mission: HUD panel present", () -> ui.hudGroup.find("vesper-basin") != null, () -> "");
 
         // --- foothold: ferroprism income first, then scrap, then the alloy line
         phase(h, s, "north ferroprism drills to the core", () -> {
@@ -271,7 +272,7 @@ public class MissionSuite implements VesperHarness.Suite{
         h.shot("mission-07-game-over", 30, 30, 2f, true);
         s.run(() -> {
             bot.active = false;
-            if(ui.restart.isShown()) ui.restart.hide();
+            if(!headless && ui.restart.isShown()) ui.restart.hide();
         });
     }
 

@@ -26,6 +26,9 @@ public class Bot{
     public boolean active;
     public String status = "idle";
     int unitId = -1;
+    /** Without a local player (dedicated server), the bot flies a core unit of its own. */
+    @Nullable Unit own;
+    float respawn;
     /** Plans the unit dropped without building (and that were queued again), for diagnosis. */
     public int requeued, unitChanges;
 
@@ -39,6 +42,7 @@ public class Bot{
             backlog.clear();
             wanted.clear();
             unitId = -1;
+            own = null;
             reactor = null;
             deliveryItem = null;
             active = false;
@@ -79,7 +83,26 @@ public class Bot{
 
     static boolean built(BuildPlan plan){
         Tile t = world.tile(plan.x, plan.y);
-        return t != null && t.block() == plan.block && t.build != null && t.build.tile == t && t.team() == player.team();
+        return t != null && t.block() == plan.block && t.build != null && t.build.tile == t && t.team() == state.rules.defaultTeam;
+    }
+
+    /** The unit that builds and carries: the player's, or on a dedicated server one the bot spawns at the core. */
+    @Nullable Unit unit(){
+        if(player != null) return player.unit();
+        if(own != null && own.isValid()) return own;
+        Building core = state.rules.defaultTeam.core();
+        //respawn delay, like the core's
+        if(core == null || (respawn += Time.delta) < 60f) return null;
+        respawn = 0f;
+        own = ((mindustry.world.blocks.storage.CoreBlock)core.block).unitType.spawn(state.rules.defaultTeam, core.x, core.y);
+        own.controller(new mindustry.entities.units.AIController(){
+            @Override
+            public void updateUnit(){
+                //the bot moves it; it must not wander or shoot on its own
+            }
+        });
+        own.updateBuilding = true;
+        return own;
     }
 
     static boolean queued(Unit u, BuildPlan plan){
@@ -96,7 +119,7 @@ public class Bot{
     void update(){
         if(!active || !state.isPlaying()) return;
         wanted.removeAll(Bot::built);
-        Unit u = player.unit();
+        Unit u = unit();
         if(u == null || u.dead()){
             status = "waiting for the unit to respawn";
             return;
@@ -139,18 +162,28 @@ public class Bot{
         }
         if(u.stack.amount > 0 && u.stack.item == deliveryItem){
             status = "carrying " + u.stack.amount + " " + deliveryItem.name + " to the reactor";
-            if(fly(u, reactor.x, reactor.y)) Call.transferInventory(player, reactor);
+            if(fly(u, reactor.x, reactor.y)) deposit(u, reactor);
         }else{
             if(fly(u, core.x, core.y)){
-                if(u.stack.amount > 0) Call.transferInventory(player, core);
+                if(u.stack.amount > 0) deposit(u, core);
                 int want = Math.min(reactor.remaining(deliveryItem), u.type.itemCapacity);
                 if(core.items.get(deliveryItem) >= want){
-                    Call.requestItem(player, core, deliveryItem, want);
+                    if(player != null) Call.requestItem(player, core, deliveryItem, want);
+                    else Call.takeItems(core, deliveryItem, Math.min(u.maxAccepted(deliveryItem), want), u);
                     status = "loading " + deliveryItem.name;
                 }else{
                     status = "waiting for " + want + " " + deliveryItem.name + " in the core (" + core.items.get(deliveryItem) + ")";
                 }
             }
+        }
+    }
+
+    /** Drops the unit's stack into a building: the player's deposit request, or on a server the transfer it performs. */
+    void deposit(Unit u, Building build){
+        if(player != null){
+            Call.transferInventory(player, build);
+        }else if(u.stack.amount > 0){
+            Call.transferItemTo(u, u.item(), build.acceptStack(u.item(), u.stack.amount, u), u.x, u.y, build);
         }
     }
 

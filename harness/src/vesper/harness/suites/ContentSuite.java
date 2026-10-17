@@ -32,6 +32,9 @@ public class ContentSuite implements VesperHarness.Suite{
                     regions(u, u.getClass(), u.name + ".", absent);
                 }
             }
+            if(headless){
+                h.line("info: " + checked + " Vesper contents loaded on a dedicated server (icons and regions need a renderer, not checked)");
+            }else{
             h.check("content icons", missingIcons.isEmpty(), checked + " contents, missing icons: " + missingIcons);
             h.line("optional regions not present (informational): " + absent.size + " " + absent);
 
@@ -40,6 +43,7 @@ public class ContentSuite implements VesperHarness.Suite{
             StaticWall wall = (StaticWall)VBlocks.machineBasaltWall;
             h.check("basalt ridge regions", wall.variantRegions.length == 2 && wall.variantRegions[0].found() && wall.variantRegions[1].found()
                 && wall.large.found(), "2 variants + large");
+            }
 
             for(String name : new String[]{galleryName, basinName}){
                 var map = maps.all().find(m -> m.mod != null && m.mod.name.equals("vesper") && m.name().equals(name));

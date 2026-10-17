@@ -27,7 +27,7 @@ public class Worlds{
         state.rules.sector = null;
         state.rules.editor = false;
         logic.play();
-        if(ui.restart != null && ui.restart.isShown()) ui.restart.hide();
+        if(!headless && ui.restart.isShown()) ui.restart.hide();
     }
 
     public static void generate(int width, int height, arc.func.Cons<Tiles> generator, Rules rules){

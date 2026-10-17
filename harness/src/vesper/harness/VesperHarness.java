@@ -11,7 +11,9 @@ import mindustry.core.*;
 import mindustry.core.GameState.*;
 import mindustry.game.*;
 import mindustry.game.EventType.*;
+import mindustry.gen.*;
 import mindustry.mod.*;
+import mindustry.server.*;
 import vesper.harness.suites.*;
 
 import java.nio.*;
@@ -26,6 +28,8 @@ import static mindustry.Vars.*;
  */
 public class VesperHarness extends Mod{
     public static final String[] allSuites = {"content", "maps", "economy", "mission", "defeat", "gallery"};
+    /** What a dedicated server (no renderer, no UI) can run: content runs its non-graphical checks only. */
+    public static final String[] headlessSuites = {"content", "maps", "economy", "mission", "defeat"};
 
     final @Nullable String suites = System.getProperty("vesper.harness");
     final float speed = Strings.parseFloat(System.getProperty("vesper.harness.speed", "1"), 1f);
@@ -48,14 +52,16 @@ public class VesperHarness extends Mod{
     public VesperHarness(){
         if(suites == null) return;
 
-        Events.on(ClientLoadEvent.class, e -> Time.run(90f, this::start));
+        //a dedicated server has no client load and does not advance Time.run while no world is loaded
+        if(headless) Events.on(ServerLoadEvent.class, e -> Core.app.post(this::start));
+        else Events.on(ClientLoadEvent.class, e -> Time.run(90f, this::start));
         Events.on(ResetEvent.class, e -> lastWinner = null);
         Events.on(GameOverEvent.class, e -> lastWinner = e.winner);
 
         Events.run(Trigger.update, () -> {
             if(out == null || finished) return;
             //a stray key press on the test window (space, escape) must not freeze a playthrough
-            if(state.isPaused() || (ui.paused != null && ui.paused.isShown())){
+            if(!headless && (state.isPaused() || (ui.paused != null && ui.paused.isShown()))){
                 if(ui.paused != null && ui.paused.isShown()) ui.paused.hide();
                 if(state.isPaused()) state.set(State.playing);
                 pauses++;
@@ -86,6 +92,8 @@ public class VesperHarness extends Mod{
     void start(){
         //the test client must keep running while its window is in the background (the game pauses it by default)
         Core.settings.put("backgroundpause", false);
+        //a dedicated server announces game over and then rotates to its next map, replacing the next suite's world
+        if(headless) ServerSide.keepWorld();
         out = Core.settings.getDataDirectory().child("vesper-harness");
         out.deleteDirectory();
         out.mkdirs();
@@ -97,7 +105,7 @@ public class VesperHarness extends Mod{
         }
         line("Vesper harness on Mindustry " + Version.buildString() + ", suites: " + suites + ", speed x" + speed);
 
-        Seq<String> list = suites.equals("true") || suites.equals("all") ? Seq.with(allSuites) : Seq.with(suites.split(","));
+        Seq<String> list = suites.equals("true") || suites.equals("all") ? Seq.with(headless ? headlessSuites : allSuites) : Seq.with(suites.split(","));
         for(String name : list){
             Suite suite = switch(name.trim()){
                 case "content" -> new ContentSuite();
@@ -153,6 +161,7 @@ public class VesperHarness extends Mod{
 
     /** Points the camera, lets the scene settle and captures the world (ui=false) or the whole screen. */
     public void shot(String name, float tileX, float tileY, float scale, boolean ui){
+        if(headless) return;
         script.run(() -> look(tileX, tileY, scale));
         script.wait(0.5f);
         script.step(new Script.Step(){
@@ -201,6 +210,16 @@ public class VesperHarness extends Mod{
         }, "vesper-harness-exit");
         exit.setDaemon(false);
         exit.start();
+    }
+
+    /** Server-only calls, in a class of their own: the desktop client has no server classes to load. */
+    static class ServerSide{
+        static void keepWorld(){
+            ServerControl.instance.gameOverListener = e -> {
+                state.gameOver = true;
+                Call.updateGameOver(e.winner);
+            };
+        }
     }
 
     /** A group of steps testing one area. */

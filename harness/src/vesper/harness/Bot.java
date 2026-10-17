@@ -31,6 +31,10 @@ public class Bot{
     float respawn;
     /** Plans the unit dropped without building (and that were queued again), for diagnosis. */
     public int requeued, unitChanges;
+    /** Rebuild what the team lost from its rebuild plans, as a player does with the rebuild button. */
+    public boolean rebuild;
+    public int rebuilt;
+    float rebuildTimer;
 
     //delivery to the reactor
     @Nullable ReactorBuild reactor;
@@ -59,6 +63,12 @@ public class Bot{
 
     public void build(Block block, int left, int bottom){
         build(block, left, bottom, 0);
+    }
+
+    /** Queues a block with a configuration, applied when it is finished (as a rebuild plan does). */
+    public void build(Block block, int left, int bottom, int rotation, Object config){
+        build(block, left, bottom, rotation);
+        backlog.peek().config = config;
     }
 
     /** Queues a straight line of 1x1 blocks (conveyors) with one rotation. */
@@ -137,6 +147,16 @@ public class Bot{
                 requeued++;
                 Log.info("[vesper-harness] bot: @ at @,@ left the unit's queue unbuilt; queued again", plan.block.name, plan.x, plan.y);
                 backlog.add(new BuildPlan(plan.x, plan.y, plan.rotation, plan.block));
+            }
+        }
+        if(rebuild && (rebuildTimer += Time.delta) >= 60f){
+            rebuildTimer = 0f;
+            for(var lost : state.rules.defaultTeam.data().plans){
+                if(wanted.contains(w -> w.x == lost.x && w.y == lost.y)) continue;
+                BuildPlan plan = new BuildPlan(lost.x, lost.y, lost.rotation, lost.block, lost.config);
+                backlog.add(plan);
+                wanted.add(plan);
+                rebuilt++;
             }
         }
         while(!backlog.isEmpty() && u.plans.size < 8) u.addBuild(backlog.remove(0));

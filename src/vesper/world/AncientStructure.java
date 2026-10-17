@@ -6,11 +6,13 @@ import arc.graphics.g2d.*;
 import arc.math.*;
 import arc.util.*;
 import mindustry.world.blocks.defense.*;
+import vesper.*;
 import vesper.graphics.*;
 
 /**
- * An installation left by the planet's builders. For now it is an indestructible-looking heavy structure whose
- * resonance still leaks out (its -glow region pulses additively); recovery mechanics will build on this class.
+ * An installation left by the planet's builders: a heavy structure whose resonance still leaks out (its -glow
+ * region pulses additively). The glow strengthens with planetary activity, so the ruins visibly react when the
+ * basin stirs. Ruins cannot be dismantled for materials; salvage will be its own mechanic.
  */
 public class AncientStructure extends Wall{
     public Color glowColor = VPal.resonance;
@@ -22,6 +24,8 @@ public class AncientStructure extends Wall{
         solid = true;
         destructible = true;
         update = true;
+        breakable = false;
+        rebuildable = false;
     }
 
     @Override
@@ -38,7 +42,8 @@ public class AncientStructure extends Wall{
             float z = Draw.z();
             Draw.z(z + 0.01f);
             Draw.blend(Blending.additive);
-            Draw.color(glowColor, glowAlpha * (1f - pulseMag + Mathf.absin(Time.time + id * 13f, pulseScale, pulseMag)));
+            float activity = Vesper.activity.fraction();
+            Draw.color(glowColor, Math.min(1f, glowAlpha * (1f + activity * 0.6f) * (1f - pulseMag + Mathf.absin(Time.time + id * 13f, pulseScale * (1f - activity * 0.5f), pulseMag))));
             Draw.rect(glowRegion, x, y);
             Draw.blend();
             Draw.color();

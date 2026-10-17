@@ -3,8 +3,8 @@ name: "vesper"
 author: "Jovinull"
 main: "vesper.Vesper"
 subtitle: "An industrial world that remembers."
-description: "A derelict machine-planet slowly wakes as its ancient industry runs again. Alpha build: First Awakening, a playable chapter in The Silent Basin (Play > Custom Game)."
-version: "0.2.0-alpha"
+description: "A derelict machine-planet slowly wakes as its ancient industry runs again. Alpha build: First Awakening, a playable chapter in The Silent Basin, and Resonance Fault, an experimental map where you choose how hard to push the planet (Play > Custom Game)."
+version: "0.3.0-alpha"
 minGameVersion: 160.7
 java: true
 hideBrowser: true

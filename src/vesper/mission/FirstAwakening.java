@@ -70,7 +70,7 @@ public class FirstAwakening{
             () -> reactor() == null ? "" : (int)(reactor().progress() * 100f) + "%"));
         objectives.add(new Objective("ignite", () -> Vesper.activity.awakened || (reactor() != null && reactor().ignited), null));
         //same numbers as the native wave counter next to it
-        objectives.add(new Objective("survive", () -> victory,
+        objectives.add(new Objective("survive", () -> victory && state.gameOver,
             () -> Core.bundle.format("vesper.objective.wave", state.wave, state.rules.winWave > 0 ? state.rules.winWave : attackWaves + 1)));
 
         Events.run(Trigger.update, this::update);
@@ -109,7 +109,17 @@ public class FirstAwakening{
     private void update(){
         if(!state.isGame()) return;
         if(state.rules != bound) bind();
-        if(!active || state.gameOver) return;
+        if(!active) return;
+        if(net.client()){
+            //GameOverEvent fires only on the server and the mission tags are not re-sent after joining:
+            //read the outcome from the synced game over state and the release from the synced win wave
+            if(state.gameOver && state.won){
+                victory = true;
+                completed = objectives.size;
+            }
+            if(state.rules.winWave > 0) released = true;
+        }
+        if(state.gameOver) return;
 
         //objectives only advance; they are evaluated everywhere from synced world state
         while(completed < objectives.size && objectives.get(completed).done.get()){

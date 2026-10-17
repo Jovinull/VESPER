@@ -141,6 +141,8 @@ tasks.register<JavaExec>("runClient"){
     val withHarness = project.hasProperty("harness")
     val suites = (project.findProperty("harness") as String?)?.takeIf{ it.isNotBlank() } ?: "all"
     val speed = (project.findProperty("harnessSpeed") as String?) ?: "1"
+    val window = project.findProperty("harnessWindow") as String?
+    val locale = project.findProperty("harnessLocale") as String?
     val dataDir = runDir.dir("data").asFile
     val modJar = tasks.jar.flatMap{ it.archiveFile }
     val harnessFile = harnessJar.flatMap{ it.archiveFile }
@@ -152,6 +154,12 @@ tasks.register<JavaExec>("runClient"){
     jvmArgs("-Dmindustry.data.dir=${dataDir.absolutePath}")
     if(withHarness){
         jvmArgs("-Dvesper.harness=$suites", "-Dvesper.harness.speed=$speed")
+        if(window != null) jvmArgs("-Dvesper.harness.window=$window")
+        //the game follows the JVM locale while its own language setting is "default"; give the full locale (pt_BR, not pt)
+        if(locale != null){
+            val parts = locale.split("_")
+            jvmArgs("-Duser.language=${parts[0]}", "-Duser.country=${parts.getOrElse(1){ "" }}")
+        }
         //a stuck client must not hang the build
         timeout.set(Duration.ofMinutes(90))
     }

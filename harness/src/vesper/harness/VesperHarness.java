@@ -114,6 +114,7 @@ public class VesperHarness extends Mod{
                 case "mission" -> new MissionSuite();
                 case "defeat" -> new DefeatSuite();
                 case "gallery" -> new GallerySuite();
+                case "ui" -> new UiSuite();
                 default -> null;
             };
             if(suite == null){

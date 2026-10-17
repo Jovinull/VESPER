@@ -326,10 +326,13 @@ public class VBlocks{
             unitCapModifier = 8;
         }};
 
-        derelictReactor = new AncientStructure("derelict-reactor"){{
+        derelictReactor = new DerelictReactor("derelict-reactor"){{
             requirements(Category.effect, BuildVisibility.sandboxOnly, with(structuralAlloy, 200));
             size = 4;
             health = 8000;
+            restoration = with(structuralAlloy, 300, recoveredCircuit, 100);
+            powerProduction = 5f;
+            ignitionEffect = VFx.reactorIgnition;
         }};
 
         stabilizerPylon = new AncientStructure("stabilizer-pylon"){{

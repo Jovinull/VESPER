@@ -19,6 +19,7 @@ import mindustry.io.*;
 import mindustry.maps.Map;
 import mindustry.mod.*;
 import mindustry.type.*;
+import vesper.harness.maps.*;
 
 import java.lang.reflect.*;
 import java.nio.*;
@@ -94,7 +95,7 @@ public class VesperHarness extends Mod{
         try{
             logic.reset();
             world.loadGenerator(Gallery.width, Gallery.height, Gallery::generate);
-            state.rules = rules();
+            state.rules = Gallery.rules();
             logic.play();
             line("gallery world generated: " + Gallery.width + "x" + Gallery.height + ", buildings: " + Groups.build.size());
         }catch(Throwable t){
@@ -112,28 +113,10 @@ public class VesperHarness extends Mod{
         });
     }
 
-    Rules rules(){
-        Rules r = new Rules();
-        r.waves = false;
-        r.waveTimer = false;
-        r.canGameOver = false;
-        r.fog = false;
-        r.lighting = false;
-        r.infiniteResources = true;
-        r.placeRangeCheck = false;
-        //sandbox gallery: player blocks need no power or inputs, so every showroom machine animates
-        r.teams.get(Gallery.player).cheat = true;
-        return r;
-    }
-
     void saveMap(){
         try{
             Fi file = out.child("vesper-gallery.msav");
-            MapIO.writeMap(file, new Map(StringMap.of(
-                "name", "Vesper Gallery",
-                "author", "Vesper",
-                "description", "Art preview sandbox for The Silent Basin: two working production chains, a defensive line and a showroom of every Vesper block."
-            )));
+            MapIO.writeMap(file, new Map(Gallery.tags()));
             line("map saved: " + file.name() + " (" + file.length() + " bytes)");
         }catch(Throwable t){
             fail("map save failed", t);

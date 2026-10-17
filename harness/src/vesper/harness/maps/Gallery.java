@@ -1,4 +1,4 @@
-package vesper.harness;
+package vesper.harness.maps;
 
 import arc.math.geom.*;
 import arc.struct.*;
@@ -23,6 +23,30 @@ public class Gallery{
 
     /** Power links to make once the world is running: pairs of bottom-left tiles. */
     public static final Seq<int[]> links = new Seq<>();
+
+    /** Sandbox rules: player blocks need no power or inputs, so every showroom machine animates. */
+    public static Rules rules(){
+        Rules r = new Rules();
+        r.waves = false;
+        r.waveTimer = false;
+        r.canGameOver = false;
+        r.fog = false;
+        r.lighting = false;
+        r.infiniteResources = true;
+        r.placeRangeCheck = false;
+        r.teams.get(player).cheat = true;
+        return r;
+    }
+
+    public static StringMap tags(){
+        return StringMap.of(
+            "name", "Vesper Gallery",
+            "author", "Vesper",
+            "description", "Art preview sandbox for The Silent Basin: two working production chains, a defensive line and a showroom of every Vesper block.",
+            //no generation filters: without this tag the game scatters random vanilla ores over the map on every load
+            "genfilters", "[]"
+        );
+    }
 
     static Block b(String name){
         Block block = content.block("vesper-" + name);

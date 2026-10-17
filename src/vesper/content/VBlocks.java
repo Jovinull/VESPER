@@ -23,7 +23,10 @@ import vesper.world.*;
 import static mindustry.type.ItemStack.*;
 import static vesper.content.VItems.*;
 
-/** The Silent Basin content. Behaviour is vanilla; values are prototype numbers for the art preview. */
+/**
+ * The Silent Basin content. Values are balanced for First Awakening: every recipe is reachable from ferroprism,
+ * conductive scrap and vitreous carbon; resonance crystal is an optional late resource (pulse turret).
+ */
 public class VBlocks{
     public static Block
     //environment (declaration order sets floor edge priority)
@@ -141,7 +144,7 @@ public class VBlocks{
         structuralForge = new GenericCrafter("structural-forge"){{
             requirements(Category.crafting, with(ferroprism, 30, conductiveScrap, 15));
             size = 2;
-            craftTime = 60f;
+            craftTime = 90f;
             craftEffect = Fx.smeltsmoke;
             outputItem = new ItemStack(structuralAlloy, 1);
             consumeItems(with(ferroprism, 2, vitreousCarbon, 1));
@@ -166,10 +169,10 @@ public class VBlocks{
         alloyRefinery = new GenericCrafter("alloy-refinery"){{
             requirements(Category.crafting, with(ferroprism, 80, structuralAlloy, 30));
             size = 3;
-            craftTime = 75f;
+            craftTime = 120f;
             craftEffect = Fx.smeltsmoke;
-            outputItem = new ItemStack(structuralAlloy, 3);
-            consumeItems(with(ferroprism, 4, vitreousCarbon, 2));
+            outputItem = new ItemStack(structuralAlloy, 2);
+            consumeItems(with(ferroprism, 3, vitreousCarbon, 1));
             consumePower(1.5f);
             drawer = new DrawMulti(new DrawDefault(), new DrawRegion("-top"), new DrawGlowRegion(){{ color = VPal.industrial; alpha = 0.8f; }});
         }};
@@ -189,7 +192,7 @@ public class VBlocks{
             requirements(Category.power, with(ferroprism, 25, conductiveScrap, 15));
             size = 2;
             powerProduction = 1.2f;
-            itemDuration = 120f;
+            itemDuration = 150f;
             generateEffect = Fx.generatespark;
             consume(new ConsumeItemFlammable());
             consume(new ConsumeItemExplode());
@@ -218,12 +221,12 @@ public class VBlocks{
         }};
 
         componentAssembler = new GenericCrafter("component-assembler"){{
-            requirements(Category.crafting, with(ferroprism, 60, structuralAlloy, 40));
+            requirements(Category.crafting, with(ferroprism, 50, structuralAlloy, 30));
             size = 3;
-            craftTime = 100f;
-            outputItem = new ItemStack(recoveredCircuit, 2);
-            consumeItems(with(structuralAlloy, 2, conductiveScrap, 2));
-            consumePower(1f);
+            craftTime = 120f;
+            outputItem = new ItemStack(recoveredCircuit, 1);
+            consumeItems(with(structuralAlloy, 1, conductiveScrap, 2));
+            consumePower(0.75f);
             drawer = new DrawMulti(new DrawDefault(), new DrawRegion("-top"));
         }};
 

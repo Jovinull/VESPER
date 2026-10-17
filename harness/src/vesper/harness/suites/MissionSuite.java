@@ -183,7 +183,11 @@ public class MissionSuite implements VesperHarness.Suite{
         });
         s.wait(1f);
         s.check("recovery: the first forge is gone", () -> !(world.build(33, 22) != null && world.build(33, 22).block == structuralForge), () -> "");
-        s.run(() -> alloyBeforeRecovery = state.stats.coreItemCount.get(structuralAlloy));
+        s.run(() -> {
+            alloyBeforeRecovery = state.stats.coreItemCount.get(structuralAlloy);
+            //a construction site lost to a wave is rebuilt too, as a player would; only during the recovery, so the rest stays comparable
+            bot.rebuild = true;
+        });
         phase(h, s, "rebuild the first forge and its drills from the core stock", () -> {
             bot.build(structuralForge, 33, 22);
             for(int x : new int[]{37, 39, 41}) bot.build(surveyDrill, x, 23);
@@ -191,6 +195,7 @@ public class MissionSuite implements VesperHarness.Suite{
         s.until("recovery: alloy production resumes", () -> state.stats.coreItemCount.get(structuralAlloy) >= alloyBeforeRecovery + 10
             && world.build(33, 22) != null && world.build(33, 22).block == structuralForge, 120f,
             () -> "alloy delivered since the raid: " + (state.stats.coreItemCount.get(structuralAlloy) - alloyBeforeRecovery));
+        s.run(() -> bot.rebuild = false);
 
         // --- the reactor: carry alloy and circuits from the core
         s.run(() -> bot.deliver(reactor(), structuralAlloy));

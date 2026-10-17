@@ -14,7 +14,7 @@ class Entry:
     name: str
     family: str
     folder: str
-    kind: str                 # floor | ore | item | block | turret | unit | effect
+    kind: str                 # floor | wall | ore | item | block | turret | unit | effect
     gen: object               # callable(alt) or callable() returning {suffix: Canvas}
     size: int = 1             # footprint in tiles (blocks and turrets)
     label: str = ""           # English display name
@@ -54,6 +54,9 @@ for key, label, label_pt in (("machine-basalt", "Machine Basalt", "Basalto Mecâ
                              ("rusted-plating", "Rusted Plating", "Chapas Metálicas Oxidadas"),
                              ("vitrified-dust", "Vitrified Dust", "Poeira Mineral Vitrificada")):
     add(key, "terrain", "blocks/environment", "floor", _variants(terrain.FAMILIES[key], 3), 1, label, label_pt)
+
+# --- static wall: the basalt ridges that shape the map (2 variants + a 2x2 large variant)
+add("machine-basalt-wall", "terrain", "blocks/environment", "wall", terrain.machine_basalt_wall, 1, "Basalt Ridge", "Crista de Basalto")
 
 # --- ores: 4 resources x 2 variants
 for key, label, label_pt in (("ore-ferroprism", "Ferroprism Ore", "Minério de Ferroprisma"),

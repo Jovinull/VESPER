@@ -103,6 +103,12 @@ def check_file(rep, path, e, suffix):
             rep.err(rel, "floor must be 32x32, is %dx%d" % (w, h))
         if coverage < 1.0:
             rep.err(rel, "floor must be fully opaque")
+    elif e.kind == "wall":
+        size = 64 if suffix == "-large" else 32
+        if (w, h) != (size, size):
+            rep.err(rel, "static wall region must be %dx%d, is %dx%d" % (size, size, w, h))
+        if coverage < 1.0:
+            rep.err(rel, "static wall must be fully opaque")
     elif e.kind == "ore":
         if (w, h) != (32, 32):
             rep.err(rel, "ore must be 32x32")

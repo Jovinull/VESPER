@@ -164,6 +164,80 @@ def vitrified_dust(variant):
     return c
 
 
+# ------------------------------------------------------------------------------------------ basalt ridge
+
+_RIDGE_PERIOD = 32
+# column centres of one 32 px period (two rows, the second offset by half a column); jitter keeps them irregular
+_RIDGE_LATTICE = [(1, 2), (17, -1), (8, 15), (25, 17)]
+
+
+def _ridge_cells(n):
+    """Periodic Voronoi cells over an n x n canvas plus a one-period margin, so tops crossing the border are
+    shaded exactly as in the neighbouring tile. Returns {cell key: pixel set} in canvas coordinates."""
+    P = _RIDGE_PERIOD
+    pts = []
+    for oy in range(-P, n + P, P):
+        for ox in range(-P, n + P, P):
+            for k, (x, y) in enumerate(_RIDGE_LATTICE):
+                pts.append(((k, ox, oy), x + ox, y + oy))
+    cells, joints = {}, set()
+    for y in range(-P // 2, n + P // 2):
+        for x in range(-P // 2, n + P // 2):
+            best, second, key = 1e9, 1e9, None
+            for kk, px, py in pts:
+                d = (x - px) ** 2 + (y - py) ** 2
+                if d < best:
+                    best, second, key = d, best, kk
+                elif d < second:
+                    second = d
+            if second ** 0.5 - best ** 0.5 < 1.1:
+                joints.add((x, y))
+            else:
+                cells.setdefault(key, set()).add((x, y))
+    return cells, joints
+
+
+def _ridge(key):
+    """Basalt ridge: a mass of packed column tops, brighter than the basalt floor so impassable rock reads at a
+    glance. Every variant shares the same periodic columns (borders always match); variants differ only in
+    details kept away from the border. The game darkens the interior of large wall masses on its own."""
+    n = 64 if key == "-large" else 32
+    m = _RIDGE_PERIOD // 2
+    big = R.Canvas(n + 2 * m, n + 2 * m)
+    cells, joints = _ridge_cells(n)
+    sh = lambda pts: {(x + m, y + m) for x, y in pts}  # noqa: E731
+    big.fill(sh(joints), "basalt", 1)
+    for (k, ox, oy), pix in sorted(cells.items()):
+        height = (3, 5, 4, 5)[k]                       # periodic: depends only on the column, not the tile
+        big.plate(sh(pix), "basalt", height, bevel=2, hi=1, lo=2, rim=0)
+    if key == "-large":
+        # one massive column in the middle of the 2x2 group, over the regular ones
+        top = sh(R.regular(31.5, 31.5, 23, 6, 0))
+        big.drop_shadow(top, -1, 2)
+        big.plate(top, "basalt", 5, bevel=2, hi=1, lo=2, rim=1)
+        big.shade(sh(R.line(19, 36, 35, 22)) & R.shrink(top, 3), 1)
+    c = R.Canvas(n, n)
+    for (x, y), v in big.px.items():
+        if m <= x < n + m and m <= y < n + m:
+            c.px[(x - m, y - m)] = v
+    rnd = R.rng("ridge", key)
+    inner = R.rect(4, 4, n - 8, n - 8)
+    if key == "1":
+        crack = R.path([(9, 20), (13, 17), (16, 18), (21, 13)]) & inner
+        c.fill(crack, "basalt", 1)
+        c.shade(R.shift(crack, 0, 1) - crack, 1)
+    for _ in range(2 if n == 32 else 4):
+        x, y = rnd.randint(5, n - 6), rnd.randint(5, n - 6)
+        if c.px.get((x, y), ("", 0))[1] >= 4:
+            c.set((x, y), "steel", 4)
+            c.set((x + 1, y - 1), "steel", 5)
+    return c
+
+
+def machine_basalt_wall():
+    return {key: _ridge(key) for key in ("1", "2", "-large")}
+
+
 FAMILIES = {
     "machine-basalt": machine_basalt,
     "scrap-soil": scrap_soil,

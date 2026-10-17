@@ -25,7 +25,7 @@ import static mindustry.Vars.*;
  * times faster (capped by the game's own maximum frame delta). Output goes to <data dir>/vesper-harness/.
  */
 public class VesperHarness extends Mod{
-    public static final String[] allSuites = {"content", "maps", "economy", "gallery"};
+    public static final String[] allSuites = {"content", "maps", "economy", "mission", "gallery"};
 
     final @Nullable String suites = System.getProperty("vesper.harness");
     final float speed = Strings.parseFloat(System.getProperty("vesper.harness.speed", "1"), 1f);
@@ -101,6 +101,7 @@ public class VesperHarness extends Mod{
                 case "content" -> new ContentSuite();
                 case "maps" -> new MapsSuite();
                 case "economy" -> new EconomySuite();
+                case "mission" -> new MissionSuite();
                 case "gallery" -> new GallerySuite();
                 default -> null;
             };

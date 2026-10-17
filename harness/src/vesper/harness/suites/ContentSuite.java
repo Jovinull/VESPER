@@ -15,7 +15,7 @@ import java.lang.reflect.*;
 
 import static mindustry.Vars.*;
 
-/** Every Vesper content has its icons and regions, the bundled gallery is listed, and both bundles have the same keys. */
+/** Every Vesper content has its icons and regions, both bundled maps are listed, and both bundles have the same keys. */
 public class ContentSuite implements VesperHarness.Suite{
     public static final String galleryName = "Vesper Gallery", basinName = "First Awakening - The Silent Basin";
 
@@ -41,7 +41,7 @@ public class ContentSuite implements VesperHarness.Suite{
             h.check("basalt ridge regions", wall.variantRegions.length == 2 && wall.variantRegions[0].found() && wall.variantRegions[1].found()
                 && wall.large.found(), "2 variants + large");
 
-            for(String name : new String[]{galleryName}){
+            for(String name : new String[]{galleryName, basinName}){
                 var map = maps.all().find(m -> m.mod != null && m.mod.name.equals("vesper") && m.name().equals(name));
                 h.check("bundled map listed: " + name, map != null, map == null ? "not found" : map.width + "x" + map.height);
             }

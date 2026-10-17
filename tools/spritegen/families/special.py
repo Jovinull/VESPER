@@ -142,7 +142,10 @@ def derelict_reactor(alt="a"):
     K.cracks(base, "reactor-c1", (96, 60), 18)
     K.cracks(base, "reactor-c2", (70, 100), 14)
     glow = glow_layer(n, leaks | R.circle(cx, cy, 6), "teal", 5, falloff=3, alpha=(120, 60, 25), core_alpha=170)
-    return {"": base, "-glow": glow}
+    # restored state: the glyph ring and the whole core light up (drawn additively once the reactor runs)
+    lit = R.ring(cx, cy, 28.5, 26.5) - R.poly([(cx, cy), (cx - 60, cy + 4), (cx - 20, cy - 60)])
+    active = glow_layer(n, lit | core | leaks, "teal", 5, falloff=3, alpha=(110, 55, 22), core_alpha=150)
+    return {"": base, "-glow": glow, "-active": active}
 
 
 def stabilizer_pylon(alt="a"):

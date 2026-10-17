@@ -137,4 +137,4 @@ BY_NAME = {e.name: e for e in ENTRIES}
 
 # suffixes that are not separate atlas regions of the block itself but helper regions with their own rules
 TEAM_SUFFIXES = ("-cell", "-team")
-GLOW_SUFFIXES = ("-glow", "-rim", "-heat", "-laser", "-laser-end")
+GLOW_SUFFIXES = ("-glow", "-rim", "-heat", "-laser", "-laser-end", "-active")

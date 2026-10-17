@@ -18,6 +18,7 @@ import mindustry.world.consumers.*;
 import mindustry.world.draw.*;
 import mindustry.world.meta.*;
 import vesper.graphics.*;
+import vesper.systems.*;
 import vesper.world.*;
 
 import static mindustry.type.ItemStack.*;
@@ -353,5 +354,17 @@ public class VBlocks{
             pulseScale = 18f;
             pulseMag = 0.5f;
         }};
+
+        //planetary activity: how much a working building of each kind disturbs the basin
+        var weights = PlanetaryActivity.weights;
+        weights.put(structuralForge, 3f);
+        weights.put(scrapRecycler, 2f);
+        weights.put(alloyRefinery, 5f);
+        weights.put(mineralCompressor, 3f);
+        weights.put(combustionEngine, 3f);
+        weights.put(experimentalResonator, 6f);
+        weights.put(componentAssembler, 5f);
+        weights.put(reinforcedDrill, 2f);
+        weights.put(crystalExtractor, 4f);
     }
 }

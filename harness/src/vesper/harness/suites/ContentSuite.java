@@ -15,9 +15,9 @@ import java.lang.reflect.*;
 
 import static mindustry.Vars.*;
 
-/** Every Vesper content has its icons and regions, both bundled maps are listed, and both bundles have the same keys. */
+/** Every Vesper content has its icons and regions, the bundled maps are listed, and both bundles have the same keys and every text the missions use. */
 public class ContentSuite implements VesperHarness.Suite{
-    public static final String galleryName = "Vesper Gallery", basinName = "First Awakening - The Silent Basin";
+    public static final String galleryName = "Vesper Gallery", basinName = "First Awakening - The Silent Basin", faultName = "Resonance Fault - The Silent Basin";
 
     @Override
     public void define(VesperHarness h, Script s){
@@ -45,7 +45,7 @@ public class ContentSuite implements VesperHarness.Suite{
                 && wall.large.found(), "2 variants + large");
             }
 
-            for(String name : new String[]{galleryName, basinName}){
+            for(String name : new String[]{galleryName, basinName, faultName}){
                 var map = maps.all().find(m -> m.mod != null && m.mod.name.equals("vesper") && m.name().equals(name));
                 h.check("bundled map listed: " + name, map != null, map == null ? "not found" : map.width + "x" + map.height);
             }
@@ -56,6 +56,18 @@ public class ContentSuite implements VesperHarness.Suite{
             Seq<String> onlyEn = en.toSeq().select(k -> !pt.contains(k)), onlyPt = pt.toSeq().select(k -> !en.contains(k));
             h.check("bundles have the same keys", onlyEn.isEmpty() && onlyPt.isEmpty(),
                 en.size + " keys; missing in pt_BR: " + onlyEn + "; missing in en: " + onlyPt);
+            //texts looked up by key at run time: a missing one would show as ???key??? in game
+            Seq<String> used = new Seq<>();
+            for(var scenario : new vesper.mission.Scenario[]{vesper.Vesper.mission, vesper.Vesper.fault}){
+                used.addAll(scenario.key() + ".title", scenario.key() + ".victory");
+                for(var objective : scenario.objectives()) used.add("vesper.objective." + objective.key);
+            }
+            used.addAll("vesper.fault.complete", "vesper.response.help", "vesper.pulse.incoming", "vesper.pulse.active", "vesper.pulse.announce", "vesper.pulse.toast",
+                "vesper.stabilizer.bar", "vesper.stabilizer.off", "vesper.resonance.bar", "stat.vesper-resonance", "stat.vesper-stabilization",
+                "vesper.activity.sources.stabilized", "vesper.activity.resonance", "vesper.activity.incoming.awakening.gates", "vesper.activity.announce.awakening.gates");
+            for(var stage : new String[]{"dormant", "stirring", "pulses", "awakened"}) used.add("vesper.response.hint." + stage);
+            Seq<String> missing = used.select(k -> !en.contains(k));
+            h.check("every text the missions and the planetary response use exists", missing.isEmpty(), used.size + " keys, missing: " + missing);
         });
     }
 

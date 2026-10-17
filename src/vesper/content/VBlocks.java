@@ -104,6 +104,8 @@ public class VBlocks{
             size = 2;
             tier = 2;
             drillTime = 600f;
+            //no booster: without this, a drill with no optional consumer gets the 1.6x liquid boost twice (speed and warmup)
+            liquidBoostIntensity = 1f;
         }};
 
         reinforcedDrill = new Drill("reinforced-drill"){{
@@ -111,6 +113,7 @@ public class VBlocks{
             size = 3;
             tier = 3;
             drillTime = 400f;
+            liquidBoostIntensity = 1f;
             consumePower(0.6f);
         }};
 
@@ -119,6 +122,7 @@ public class VBlocks{
             size = 2;
             tier = 1;
             drillTime = 480f;
+            liquidBoostIntensity = 1f;
             rotateSpeed = 1.6f;
         }};
 
@@ -127,6 +131,7 @@ public class VBlocks{
             size = 2;
             tier = 3;
             drillTime = 720f;
+            liquidBoostIntensity = 1f;
             rotateSpeed = 0.8f;
             drawRim = true;
             heatColor = VPal.resonance;

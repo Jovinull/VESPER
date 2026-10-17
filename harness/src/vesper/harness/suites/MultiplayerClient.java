@@ -6,14 +6,16 @@ import mindustry.gen.*;
 import vesper.*;
 import vesper.harness.*;
 import vesper.world.DerelictReactor.*;
+import vesper.world.Stabilizer.*;
 
 import static mindustry.Vars.*;
 import static vesper.content.VItems.*;
 
 /**
  * Client side of the local multiplayer test: joins the dedicated server, answers its queries with this client's
- * view of the game and performs the player actions it is asked for (carrying items, igniting the reactor) with
- * the normal network calls. The server records every check; this side only reports and acts.
+ * view of the game and performs the player actions it is asked for (carrying items, igniting the reactor,
+ * switching a stabilizer) with the normal network calls. The server records every check; this side only reports
+ * and acts.
  */
 public class MultiplayerClient implements VesperHarness.Suite{
     final String name = System.getProperty("vesper.mp.name", "Tester");
@@ -57,6 +59,9 @@ public class MultiplayerClient implements VesperHarness.Suite{
         }else if(data.equals("ignite")){
             h.line("mp client " + name + ": asking to ignite the reactor");
             if(reactor() != null) reactor().configure(true);
+        }else if(data.equals("stabilizer-off") || data.equals("stabilizer-on")){
+            h.line("mp client " + name + ": switching the stabilizer " + (data.endsWith("on") ? "on" : "off"));
+            if(world.build(MultiplayerHost.stabilizerX, MultiplayerHost.stabilizerY) instanceof StabilizerBuild b) b.configure(data.endsWith("on"));
         }else if(data.startsWith("shot:")){
             h.captureNow(data.substring(5) + "-" + name.toLowerCase(), true);
         }else if(data.equals("bye")){
@@ -70,6 +75,8 @@ public class MultiplayerClient implements VesperHarness.Suite{
         var m = Vesper.mission;
         var r = reactor();
         var panel = ui.hudGroup.find("vesper-basin");
+        var stab = world.build(MultiplayerHost.stabilizerX, MultiplayerHost.stabilizerY) instanceof StabilizerBuild b ? b : null;
+        var extractor = world.build(MultiplayerHost.faultExtractors[0][0], MultiplayerHost.faultExtractors[0][1]);
         return "map=" + (state.map == null ? "-" : state.map.name()) + ";size=" + world.width() + "x" + world.height() + ";foreign=" + Worlds.foreignTiles()
             + ";activity=" + a.active() + ";mission=" + m.active() + ";level=" + Strings.fixed(a.level, 1) + ";stage=" + a.stage.name()
             + ";awakened=" + a.awakened + ";pending=" + (a.pending > 0f) + ";incoming=" + (a.pendingSentinels + a.pendingCrawlers)
@@ -78,7 +85,12 @@ public class MultiplayerClient implements VesperHarness.Suite{
             + ";enemies=" + Groups.unit.count(u -> u.team == state.rules.waveTeam)
             + ";delivered=" + (r == null ? "-" : r.delivered[0] + "+" + r.delivered[1]) + ";ignited=" + (r != null && r.ignited)
             + ";victory=" + m.victory + ";objective=" + (m.current() == null ? "done" : m.current().key)
-            + ";gameover=" + state.gameOver + ";won=" + state.won;
+            + ";gameover=" + state.gameOver + ";won=" + state.won
+            + ";fault=" + Vesper.fault.active() + ";responses=" + a.responses() + ";stabilization=" + Strings.fixed(a.stabilization, 1)
+            + ";stab=" + (stab == null ? "-" : (stab.online ? "on " : "off ") + Strings.fixed(stab.contribution, 1))
+            + ";pulse=" + (a.pulseActive > 0f ? "active" : a.pulsePending > 0f ? "pending" : "none") + "@" + a.pulseX + "," + a.pulseY
+            + ";extractor=" + (extractor == null ? "-" : Strings.fixed(Vesper.activity.resonance(extractor), 2))
+            + ";faultVictory=" + Vesper.fault.victory + ";faultObjective=" + (Vesper.fault.current() == null ? "done" : Vesper.fault.current().key);
     }
 
     static ReactorBuild reactor(){

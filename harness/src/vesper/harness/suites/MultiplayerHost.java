@@ -4,6 +4,7 @@ import arc.*;
 import arc.files.*;
 import arc.struct.*;
 import arc.util.*;
+import mindustry.content.*;
 import mindustry.core.GameState.*;
 import mindustry.game.*;
 import mindustry.gen.*;
@@ -12,16 +13,20 @@ import mindustry.maps.Map;
 import mindustry.net.*;
 import vesper.*;
 import vesper.harness.*;
+import vesper.mission.*;
 import vesper.world.DerelictReactor.*;
+import vesper.world.Stabilizer.*;
 
 import static mindustry.Vars.*;
+import static vesper.content.VBlocks.*;
 import static vesper.content.VItems.*;
 
 /**
  * Server side of the local multiplayer test (run on the official dedicated server, two clients join with the
  * mp-client suite). The server drives the script, asks both clients for their view of the game through a custom
  * packet and compares it with its own authoritative state. Clients perform the player actions (carrying items
- * into the reactor, igniting it) through the normal network calls.
+ * into the reactor, igniting it, switching a stabilizer) through the normal network calls. First Awakening covers
+ * the 0.2 mission; Resonance Fault covers the planetary response (stabilizers, pulses) and its own victory.
  */
 public class MultiplayerHost implements VesperHarness.Suite{
     public static final String packet = "vesper-mp";
@@ -31,11 +36,24 @@ public class MultiplayerHost implements VesperHarness.Suite{
     final ObjectMap<String, StringMap> answers = new ObjectMap<>();
     String query = "";
     int queries;
-    Map map;
+    Map map, fault;
     String savedSnapshot = "";
+    /** Fixture: while >= 0 the server holds the activity surge here (to reach the pulse level quickly). */
+    float holdShock = -1f;
+    boolean holding;
+    /** Bottom-left tiles of the test stabilizer and extractors near the Resonance Fault core (sheltered crystal vein). */
+    public static final int stabilizerX = 24, stabilizerY = 22;
+    public static final int[][] faultExtractors = {{31, 25}, {33, 25}, {33, 27}}, faultSinks = {{30, 25}, {35, 25}, {35, 27}};
+    public static final int powerX = 29, powerY = 24;
 
     @Override
     public void define(VesperHarness h, Script s){
+        if(!holding){
+            holding = true;
+            Events.run(EventType.Trigger.update, () -> {
+                if(holdShock >= 0f && Vesper.activity.active()) Vesper.activity.shock = holdShock;
+            });
+        }
         s.run(() -> {
             //the harness keeps the world after game over (no map rotation), so the victory and defeat checks can follow
             netServer.addPacketHandler(packet, (player, data) -> {
@@ -159,6 +177,95 @@ public class MultiplayerHost implements VesperHarness.Suite{
         ask(h, s, "defeat");
         expect(h, s, "mp: both clients see the defeat", a -> a.get("gameover").equals("true") && a.get("won").equals("false"));
 
+        // --- 0.3: the planetary response on Resonance Fault (test setup: a powered stabilizer and three extractors near the core)
+        s.run(() -> {
+            fault = Worlds.bundled(ContentSuite.faultName);
+            WorldReloader reloader = new WorldReloader();
+            reloader.begin();
+            Rules rules = fault.applyRules(Gamemode.survival);
+            world.loadMap(fault, rules);
+            state.rules = rules;
+            logic.play();
+            reloader.end();
+        });
+        s.until("mp: both clients join Resonance Fault", () -> Groups.player.count(p -> p.unit() != null && !p.dead()) >= 2, 120f, null);
+        s.wait(2f);
+        s.run(() -> {
+            Team team = state.rules.defaultTeam;
+            world.tile(powerX, powerY).setNet(Blocks.powerSource, team, 0);
+            world.tile(stabilizerX, stabilizerY).setNet(stabilizerPylon, team, 0);
+            for(int[] e : faultExtractors) world.tile(e[0], e[1]).setNet(crystalExtractor, team, 0);
+            //somewhere for the crystal to go, or a full extractor stops working
+            for(int[] v : faultSinks) world.tile(v[0], v[1]).setNet(Blocks.itemVoid, team, 0);
+        });
+        s.wait(1f);
+        s.run(() -> {
+            Building source = world.build(powerX, powerY);
+            source.configure(world.build(stabilizerX, stabilizerY).pos());
+            for(int[] e : faultExtractors) source.configure(world.build(e[0], e[1]).pos());
+        });
+        s.wait(3f);
+        ask(h, s, "fault");
+        expect(h, s, "mp: clients run Resonance Fault with the planetary response", a -> a.get("map").equals(fault.name()) && a.get("fault").equals("true")
+            && a.get("responses").equals("true") && a.get("stab").startsWith("on"));
+        //a client switches the stabilizer off: only the server decides, everyone sees it
+        s.run(() -> send(first(), "stabilizer-off"));
+        s.until("mp: a client switches a stabilizer off; the server applies it", () -> !stabilizer().online, 15f, null);
+        s.wait(2f);
+        ask(h, s, "stab-off");
+        expect(h, s, "mp: both clients see it off and the stabilization gone", a -> a.get("stab").equals("off 0.0") && a.get("stabilization").equals("0.0"));
+        s.run(() -> send(second(), "stabilizer-on"));
+        s.until("mp: the other client switches it back on", () -> stabilizer().online && Vesper.activity.stabilization > 11.9f, 15f, null);
+        s.wait(2f);
+        ask(h, s, "stab-on");
+        expect(h, s, "mp: both clients see the stabilization", a -> a.get("stab").equals("on 12.0") && a.get("stabilization").equals("12.0"));
+        //a pulse: announced and landed on the server, mirrored by the clients
+        s.run(() -> {
+            holdShock = 60f;
+            Vesper.activity.pulseCooldown = 0f;
+        });
+        s.until("mp: the server announces a pulse at the extractors", () -> Vesper.activity.pulsePending > 0f, 60f, () -> "level " + (int)Vesper.activity.level);
+        s.wait(1f);
+        ask(h, s, "pulse-pending");
+        expect(h, s, "mp: both clients see the announced pulse and where it lands", a -> a.get("pulse").startsWith("pending@" + Vesper.activity.pulseX + "," + Vesper.activity.pulseY));
+        s.until("mp: the pulse lands on the server", () -> Vesper.activity.pulseActive > 0f, 25f, null);
+        s.wait(1f);
+        ask(h, s, "pulse-active");
+        expect(h, s, "mp: both clients see the pulse and the boost of the extractor inside", a -> a.get("pulse").startsWith("active@")
+            && Math.abs(Strings.parseFloat(a.get("extractor"), 0f) - Vesper.activity.resonance(world.build(faultExtractors[0][0], faultExtractors[0][1]))) < 0.15f);
+        //save and load in the middle of the pulse
+        s.run(() -> {
+            Fi file = h.out.child("mp-fault.msav");
+            SaveIO.save(file);
+            savedSnapshot = faultSnapshot();
+            WorldReloader reloader = new WorldReloader();
+            reloader.begin();
+            SaveIO.load(file);
+            state.rules.sector = null;
+            state.set(State.playing);
+            reloader.end();
+            h.line("mp: Resonance Fault saved and reloaded on the server: " + savedSnapshot);
+        });
+        s.until("mp: both clients are back in Resonance Fault", () -> Groups.player.count(p -> p.unit() != null && !p.dead()) >= 2, 120f, null);
+        s.wait(2f);
+        s.check("mp: pulse and stabilizer survive save and load on the server", () -> faultSnapshot().equals(savedSnapshot), this::faultSnapshot);
+        ask(h, s, "fault-reload");
+        expect(h, s, "mp: clients see the reloaded pulse and stabilizer", a -> a.get("pulse").startsWith("active@") && a.get("stab").startsWith("on"));
+        //victory: the core holds the goal (test setup adds the crystal)
+        s.run(() -> {
+            holdShock = -1f;
+            state.rules.defaultTeam.core().items.add(resonanceCrystal, ResonanceFault.goal);
+        });
+        s.until("mp: the server declares Resonance Fault won", () -> h.lastWinner == state.rules.defaultTeam, 30f, () -> "objectives " + Vesper.fault.completed);
+        s.wait(2f);
+        ask(h, s, "fault-victory");
+        expect(h, s, "mp: both clients see the Resonance Fault victory", a -> a.get("gameover").equals("true") && a.get("won").equals("true")
+            && a.get("faultVictory").equals("true") && a.get("faultObjective").equals("done"));
+        s.run(() -> {
+            for(Player p : Groups.player) Call.clientPacketReliable(p.con, packet, "shot:mp-fault-victory");
+        });
+        s.wait(2f);
+
         s.run(() -> {
             for(Player p : Groups.player) Call.clientPacketReliable(p.con, packet, "bye");
         });
@@ -229,6 +336,18 @@ public class MultiplayerHost implements VesperHarness.Suite{
 
     static String incoming(){
         return (Vesper.activity.pendingSentinels + Vesper.activity.pendingCrawlers) + "";
+    }
+
+    static StabilizerBuild stabilizer(){
+        return world.build(stabilizerX, stabilizerY) instanceof StabilizerBuild b ? b : null;
+    }
+
+    String faultSnapshot(){
+        var a = Vesper.activity;
+        var b = stabilizer();
+        //the stage is left out: the held surge keeps moving the level while the clients reconnect
+        return "pulse=" + (a.pulseActive > 0f ? "active" : a.pulsePending > 0f ? "pending" : "none") + "@" + a.pulseX + "," + a.pulseY
+            + " pulses=" + a.pulses + " stabilizer=" + (b == null ? "-" : b.online) + " fault=" + Vesper.fault.completed;
     }
 
     static String snapshot(){

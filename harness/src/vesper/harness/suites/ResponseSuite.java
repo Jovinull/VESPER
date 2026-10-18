@@ -18,6 +18,7 @@ import vesper.content.*;
 import vesper.harness.*;
 import vesper.systems.*;
 import vesper.systems.PlanetaryActivity.*;
+import vesper.world.*;
 import vesper.world.ResonantCrafter.*;
 import vesper.world.ResonantDrill.*;
 import vesper.world.Stabilizer.*;
@@ -31,8 +32,9 @@ import static vesper.content.VItems.*;
  * destroyed and rebuilt with their setting), the stage thresholds, the resonance bonus measured on a real extractor
  * and resonator, resonance pulses (announcement, boost, slowdown, overload, flare, cooldown), patrols that scale
  * with the level (size, cooldown, unit cap), two events at once, save/load in each of those states, and nothing of
- * it outside Vesper maps or on the builders' derelict pylons; the cost of the per-second sample with a crowded base. Last, a save written by 0.2.0-alpha (First Awakening in
- * the middle of the awakening countdown) loads with its state intact and plays on.
+ * it outside Vesper maps or on the builders' derelict pylons; the cost of the per-second sample with a crowded base. Last, saves written by older
+ * versions load with their state intact and play on: 0.2.0-alpha (First Awakening in the middle of the awakening countdown) and 0.3.0-alpha (this
+ * world in the middle of a pulse; Resonance Fault in the middle of a loud game, reactor lit).
  * <p>
  * Test fixtures, not gameplay: the level is set by holding the surge value, enemy units deal no damage, and pulses
  * are held back while the bonus and the thresholds are measured. Everything else runs through the real systems.
@@ -49,7 +51,7 @@ public class ResponseSuite implements VesperHarness.Suite{
     float holdShock = -1f;
     boolean listening;
     final FloatSeq totals = new FloatSeq();
-    int crystalStart, coresStart, lowCrystal, lowCores, pulsesBefore, enemiesBefore, expected;
+    int crystalStart, coresStart, lowCrystal, lowCores, pulsesBefore, enemiesBefore, expected, storedBefore;
     float shockBefore, pendingBefore, pulseBefore;
     String before = "";
 
@@ -415,9 +417,38 @@ public class ResponseSuite implements VesperHarness.Suite{
         s.until("0.2 save: the awakening response it was counting down to arrives", () -> a.pending < 0f, 40f, null);
         s.wait(0.3f);
         s.check("0.2 save: exactly the five announced machines", () -> state.enemies - enemiesBefore == 5, () -> (state.enemies - enemiesBefore) + " of 5");
+
+        // --- 0.3.0-alpha saves (activity record version 2, no archaeology): this world in the middle of a pulse, Resonance Fault in a loud game
+        s.run(() -> loadFixture("planetary-response-0.3-pulse.msav"));
+        s.wait(1f);
+        s.check("0.3 save: the pulse it was in runs on (industry inside slowed, the stabilizer inside overloaded)", () -> a.active() && a.responses() && a.pulseActive > 0f
+            && near(forge(10, 4).timeScale(), 0.5f, 0.001f) && stabilizer(6).stabilizerOperation() == 0f && stabilizer(1).stabilizerOperation() > 0f
+            && !AncientSite.enabled() && Vesper.scenario() == null, () -> "pulse " + Strings.fixed(a.pulseActive / 60f, 1) + " s, " + stabilizerStates());
+        s.until("0.3 save: the pulse ends and everything returns to normal", () -> a.pulseActive < 0f && forge(10, 4).timeScale() == 1f
+            && stabilizer(6).stabilizerOperation() > 0f, 30f, null);
+        s.run(() -> {
+            loadFixture("resonance-fault-0.3-midgame.msav");
+            storedBefore = Vesper.fault.stored();
+        });
+        s.wait(1f);
+        s.check("0.3 save: Resonance Fault loads in the middle of the loud game", () -> Vesper.scenario() == Vesper.fault && Vesper.fault.completed == 2
+            && Vesper.mission.reactor() != null && Vesper.mission.reactor().ignited && a.responses() && a.level > 45f && !Vesper.foundry.active() && !AncientSite.enabled(),
+            () -> "objectives " + Vesper.fault.completed + ", level " + (int)a.level + " (" + a.stage + "), stored " + Vesper.fault.stored());
+        s.wait(20f);
+        s.check("0.3 save: the game goes on (crystal keeps reaching the core)", () -> Vesper.fault.stored() > storedBefore && state.rules.defaultTeam.core() != null,
+            () -> storedBefore + " -> " + Vesper.fault.stored());
         s.run(() -> {
             if(!headless && ui.restart.isShown()) ui.restart.hide();
         });
+    }
+
+    /** Loads a save bundled with the harness (written by an older Vesper), the way Load Game does. */
+    static void loadFixture(String name){
+        Fi save = mods.getMod("vesper-harness").root.child("saves").child(name);
+        logic.reset();
+        SaveIO.load(save);
+        state.rules.sector = null;
+        state.set(State.playing);
     }
 
     static void generate(Tiles tiles){

@@ -4,7 +4,11 @@ import arc.*;
 import arc.util.*;
 import mindustry.gen.*;
 import vesper.*;
+import vesper.content.*;
 import vesper.harness.*;
+import vesper.harness.maps.*;
+import vesper.world.*;
+import vesper.world.AncientSite.*;
 import vesper.world.DerelictReactor.*;
 import vesper.world.Stabilizer.*;
 
@@ -14,13 +18,15 @@ import static vesper.content.VItems.*;
 /**
  * Client side of the local multiplayer test: joins the dedicated server, answers its queries with this client's
  * view of the game and performs the player actions it is asked for (carrying items, igniting the reactor,
- * switching a stabilizer) with the normal network calls. The server records every check; this side only reports
+ * switching a stabilizer, choosing a buried machine's fate, dropping out) with the normal network calls. The server records every check; this side only reports
  * and acts.
  */
 public class MultiplayerClient implements VesperHarness.Suite{
     final String name = System.getProperty("vesper.mp.name", "Tester");
     final Bot bot = new Bot();
     boolean done, everConnected, delivering;
+    /** The buried machine this client is restoring: "west", "east" or null. */
+    @Nullable String restoring;
     float reconnectTimer;
 
     @Override
@@ -45,6 +51,20 @@ public class MultiplayerClient implements VesperHarness.Suite{
                 else if(reactor().remaining(recoveredCircuit) > 0) bot.deliver(reactor(), recoveredCircuit);
                 else delivering = bot.active = false;
             }
+            if(restoring != null){
+                SiteBuild site = site(restoring);
+                if(site == null || site.siteState != SiteState.restoring){
+                    restoring = null;
+                    bot.active = false;
+                }else if(!bot.delivering()){
+                    for(var stack : ((AncientSite)site.block).restoration){
+                        if(site.remaining(stack.item) > 0){
+                            bot.deliver(site, stack.item, site::remaining);
+                            break;
+                        }
+                    }
+                }
+            }
             return done;
         });
     }
@@ -62,6 +82,18 @@ public class MultiplayerClient implements VesperHarness.Suite{
         }else if(data.equals("stabilizer-off") || data.equals("stabilizer-on")){
             h.line("mp client " + name + ": switching the stabilizer " + (data.endsWith("on") ? "on" : "off"));
             if(world.build(MultiplayerHost.stabilizerX, MultiplayerHost.stabilizerY) instanceof StabilizerBuild b) b.configure(data.endsWith("on"));
+        }else if(data.startsWith("choose-")){
+            //choose-<west|east>-<restore|dismantle>, as a player's tap on the dialog's button
+            String[] parts = data.split("-");
+            h.line("mp client " + name + ": choosing to " + parts[2] + " the " + parts[1] + " machine");
+            if(site(parts[1]) != null) site(parts[1]).configure(parts[2].equals("restore") ? AncientSite.chooseRestore : AncientSite.chooseDismantle);
+        }else if(data.startsWith("restore-")){
+            h.line("mp client " + name + ": carrying the restoration into the " + data.substring(8) + " machine");
+            restoring = data.substring(8);
+            bot.active = true;
+        }else if(data.equals("disconnect")){
+            h.line("mp client " + name + ": dropping out");
+            netClient.disconnectQuietly();
         }else if(data.startsWith("shot:")){
             h.captureNow(data.substring(5) + "-" + name.toLowerCase(), true);
         }else if(data.equals("bye")){
@@ -90,7 +122,31 @@ public class MultiplayerClient implements VesperHarness.Suite{
             + ";stab=" + (stab == null ? "-" : (stab.online ? "on " : "off ") + Strings.fixed(stab.contribution, 1))
             + ";pulse=" + (a.pulseActive > 0f ? "active" : a.pulsePending > 0f ? "pending" : "none") + "@" + a.pulseX + "," + a.pulseY
             + ";extractor=" + (extractor == null ? "-" : Strings.fixed(Vesper.activity.resonance(extractor), 2))
-            + ";faultVictory=" + Vesper.fault.victory + ";faultObjective=" + (Vesper.fault.current() == null ? "done" : Vesper.fault.current().key);
+            + ";faultVictory=" + Vesper.fault.victory + ";faultObjective=" + (Vesper.fault.current() == null ? "done" : Vesper.fault.current().key)
+            + ";foundry=" + Vesper.foundry.active() + ";west=" + stateOf(site("west")) + ";east=" + stateOf(site("east")) + ";archive=" + stateOf(site("archive"))
+            + ";westDelivered=" + delivered(site("west")) + ";eastDelivered=" + delivered(site("east"))
+            + ";platform=" + (state.rules.isBanned(VBlocks.ancientPlatform) ? "locked" : "open") + ";foundryReleased=" + Vesper.foundry.released
+            + ";foundryVictory=" + Vesper.foundry.victory + ";foundryObjective=" + (Vesper.foundry.current() == null ? "done" : Vesper.foundry.current().key);
+    }
+
+    static @Nullable SiteBuild site(String which){
+        var b = switch(which){
+            case "west" -> Worlds.at(BuriedFoundryMap.westX, BuriedFoundryMap.westY, 3);
+            case "east" -> Worlds.at(BuriedFoundryMap.eastX, BuriedFoundryMap.eastY, 3);
+            default -> Worlds.at(BuriedFoundryMap.archiveX, BuriedFoundryMap.archiveY, 2);
+        };
+        return b instanceof SiteBuild s ? s : null;
+    }
+
+    static String stateOf(@Nullable SiteBuild b){
+        return b == null ? "-" : b.siteState.name();
+    }
+
+    static String delivered(@Nullable SiteBuild b){
+        if(b == null) return "-";
+        StringBuilder out = new StringBuilder();
+        for(int d : b.delivered) out.append(out.length() == 0 ? "" : "+").append(d);
+        return out.toString();
     }
 
     static ReactorBuild reactor(){

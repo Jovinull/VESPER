@@ -2,6 +2,7 @@ package vesper.harness.suites;
 
 import arc.*;
 import arc.files.*;
+import arc.func.*;
 import arc.struct.*;
 import arc.util.*;
 import mindustry.content.*;
@@ -13,7 +14,9 @@ import mindustry.maps.Map;
 import mindustry.net.*;
 import vesper.*;
 import vesper.harness.*;
+import vesper.harness.maps.*;
 import vesper.mission.*;
+import vesper.world.AncientSite.*;
 import vesper.world.DerelictReactor.*;
 import vesper.world.Stabilizer.*;
 
@@ -26,7 +29,9 @@ import static vesper.content.VItems.*;
  * mp-client suite). The server drives the script, asks both clients for their view of the game through a custom
  * packet and compares it with its own authoritative state. Clients perform the player actions (carrying items
  * into the reactor, igniting it, switching a stabilizer) through the normal network calls. First Awakening covers
- * the 0.2 mission; Resonance Fault covers the planetary response (stabilizers, pulses) and its own victory.
+ * the 0.2 mission; Resonance Fault covers the planetary response (stabilizers, pulses) and its own victory; The
+ * Buried Foundry covers industrial archaeology (surveys, two clients choosing at once, a client restoring, salvage
+ * paid once across a disconnect and a save, a map change mid-survey, the archive's unlock and the victory).
  */
 public class MultiplayerHost implements VesperHarness.Suite{
     public static final String packet = "vesper-mp";
@@ -36,7 +41,9 @@ public class MultiplayerHost implements VesperHarness.Suite{
     final ObjectMap<String, StringMap> answers = new ObjectMap<>();
     String query = "";
     int queries;
-    Map map, fault;
+    Map map, fault, foundry;
+    /** Which buried machine the race restored (the other one is dismantled). */
+    boolean westRestores;
     String savedSnapshot = "";
     /** Fixture: while >= 0 the server holds the activity surge here (to reach the pulse level quickly). */
     float holdShock = -1f;
@@ -266,10 +273,226 @@ public class MultiplayerHost implements VesperHarness.Suite{
         });
         s.wait(2f);
 
+        // --- 0.4: industrial archaeology on The Buried Foundry (test setup: powered survey rigs stocked by the server)
+        loadFoundry(s);
+        s.until("mp: both clients join The Buried Foundry", () -> Groups.player.count(p -> p.unit() != null && !p.dead()) >= 2, 120f, null);
+        s.wait(2f);
+        ask(h, s, "foundry");
+        expect(h, s, "mp: clients run The Buried Foundry with archaeology, every installation unexplored, the platform locked",
+            a -> a.get("map").equals(foundry.name()) && a.get("foundry").equals("true") && a.get("west").equals("unexplored")
+                && a.get("east").equals("unexplored") && a.get("archive").equals("unexplored") && a.get("platform").equals("locked"));
+        //surveys run on the server; the reveal reaches the clients at once
+        rig(s, 35, 52, 37, 52, MultiplayerHost::west, 0.9f);
+        s.until("mp: the server completes the survey of the west machine", () -> west().siteState == SiteState.investigated, 30f,
+            () -> "survey " + (int)(west().investigation * 100) + "%");
+        s.wait(1f);
+        ask(h, s, "surveyed");
+        expect(h, s, "mp: both clients see the west machine investigated", a -> a.get("west").equals("investigated"));
+        //two clients choose at the same moment, differently: exactly one choice stands, everywhere
+        s.run(() -> {
+            send(first(), "choose-west-restore");
+            send(second(), "choose-west-dismantle");
+        });
+        s.until("mp: the server keeps exactly one of two simultaneous choices", () -> west().siteState == SiteState.restoring || west().siteState == SiteState.dismantling,
+            15f, () -> "" + west().siteState);
+        s.wait(2f);
+        s.run(() -> {
+            westRestores = west().siteState == SiteState.restoring;
+            h.line("mp: the race left the west machine " + west().siteState);
+        });
+        ask(h, s, "race");
+        expect(h, s, "mp: both clients see the choice the server kept", a -> a.get("west").equals(west().siteState.name()));
+        //the east machine takes the other fate, chosen by a client
+        rig(s, 77, 53, 79, 54, MultiplayerHost::east, 0.9f);
+        s.until("mp: the server completes the survey of the east machine", () -> east().siteState == SiteState.investigated, 30f, null);
+        s.wait(1f);
+        s.run(() -> send(second(), "choose-east-" + (westRestores ? "dismantle" : "restore")));
+        s.until("mp: a client's choice for the east machine runs on the server", () -> east().siteState == (westRestores ? SiteState.dismantling : SiteState.restoring), 15f,
+            () -> "" + east().siteState);
+        //a client carries the restoration with its unit; the server counts each deposit once
+        s.run(() -> {
+            state.rules.defaultTeam.core().items.add(structuralAlloy, 200);
+            state.rules.defaultTeam.core().items.add(recoveredCircuit, 100);
+            state.rules.defaultTeam.core().items.add(resonanceCrystal, 50);
+            send(first(), "restore-" + (westRestores ? "west" : "east"));
+        });
+        s.until("mp: a client restores a buried machine; its deposits count on the server", () -> restored().siteState == SiteState.restored, 300f,
+            () -> "delivered " + new IntSeq(restored().delivered));
+        s.check("mp: the restoration counted exactly what it costs", () -> new IntSeq(restored().delivered).equals(ArchaeologySuite.restorationCost()),
+            () -> new IntSeq(restored().delivered).toString());
+        s.wait(2f);
+        ask(h, s, "restored-site");
+        expect(h, s, "mp: both clients see the machine restored", a -> a.get(westRestores ? "west" : "east").equals("restored")
+            && a.get(westRestores ? "westDelivered" : "eastDelivered").equals(ArchaeologySuite.restorationCost().toString("+")));
+        //repeated reward attempts: a restored machine cannot be dismantled, a dismantling one cannot be restored, nothing more is taken
+        s.run(() -> {
+            send(second(), "choose-" + (westRestores ? "west" : "east") + "-dismantle");
+            send(first(), "choose-" + (westRestores ? "east" : "west") + "-restore");
+            send(first(), "restore-" + (westRestores ? "west" : "east"));
+        });
+        s.wait(4f);
+        s.check("mp: repeated and contradictory commands change nothing on the server", () -> restored().siteState == SiteState.restored
+            && dismantled().siteState == SiteState.dismantling && new IntSeq(restored().delivered).equals(ArchaeologySuite.restorationCost()), () -> restored().siteState + " / " + dismantled().siteState);
+        ask(h, s, "repeated");
+        expect(h, s, "mp: both clients still see one machine restored and the other dismantling", a -> a.get(westRestores ? "west" : "east").equals("restored")
+            && a.get(westRestores ? "east" : "west").equals("dismantling"));
+        //the dismantling starts with power; a client drops out and comes back in the middle of it
+        s.run(() -> {
+            Building source = westRestores ? world.build(79, 54) : world.build(37, 52);
+            source.configure(dismantled().pos());
+        });
+        s.wait(5f);
+        s.run(() -> send(second(), "disconnect"));
+        s.until("mp: a client disconnects during the dismantling", () -> Groups.player.size() == 1, 30f, null);
+        s.until("mp: it reconnects to the running game", () -> Groups.player.count(p -> p.unit() != null && !p.dead()) >= 2, 120f, null);
+        s.wait(2f);
+        ask(h, s, "rejoined");
+        expect(h, s, "mp: the reconnected client sees the dismantling where the server is", a -> a.get(westRestores ? "east" : "west").equals("dismantling"));
+        //save and load in the middle of the dismantling: the salvage left can only have shrunk
+        s.run(() -> {
+            Fi file = h.out.child("mp-foundry.msav");
+            SaveIO.save(file);
+            savedSnapshot = foundrySnapshot();
+            salvageAtSave = ArchaeologySuite.salvageHeld(dismantled());
+            WorldReloader reloader = new WorldReloader();
+            reloader.begin();
+            SaveIO.load(file);
+            state.rules.sector = null;
+            state.set(State.playing);
+            reloader.end();
+            h.line("mp: The Buried Foundry saved and reloaded on the server: " + savedSnapshot + ", salvage held " + salvageAtSave);
+        });
+        s.until("mp: both clients are back in The Buried Foundry", () -> Groups.player.count(p -> p.unit() != null && !p.dead()) >= 2, 120f, null);
+        s.wait(1f);
+        s.check("mp: the archaeology survives save and load on the server", () -> foundrySnapshot().equals(savedSnapshot)
+            && ArchaeologySuite.salvageHeld(dismantled()) <= salvageAtSave, () -> foundrySnapshot() + ", salvage held " + ArchaeologySuite.salvageHeld(dismantled()));
+        s.until("mp: the dismantling ends on the server", () -> dismantled().siteState == SiteState.dismantled, 90f, () -> (int)(dismantled().dismantle * 100) + "%");
+        s.wait(2f);
+        s.check("mp: the salvage reached the container once, exactly (140 alloy, 50 circuits, 120 scrap)", () -> salvage().equals("140+50+120")
+            && dismantled().salvageRemaining() == 0 && dismantled().items.total() == 0, this::salvage);
+        ask(h, s, "dismantled");
+        expect(h, s, "mp: both clients see the machine dismantled", a -> a.get(westRestores ? "east" : "west").equals("dismantled"));
+        //a map change in the middle of the archive's survey leaves nothing behind
+        rig(s, 52, 74, 54, 74, MultiplayerHost::archive, 0.3f);
+        s.wait(2f);
+        s.run(() -> {
+            WorldReloader reloader = new WorldReloader();
+            reloader.begin();
+            Rules rules = map.applyRules(Gamemode.survival);
+            world.loadMap(map, rules);
+            state.rules = rules;
+            logic.play();
+            reloader.end();
+        });
+        s.until("mp: both clients follow a map change in the middle of a survey", () -> Groups.player.count(p -> p.unit() != null && !p.dead()) >= 2, 120f, null);
+        s.wait(2f);
+        s.check("mp: the server runs First Awakening, the foundry inactive", () -> Vesper.mission.active() && !Vesper.foundry.active() && Vesper.scenario() == Vesper.mission, () -> "");
+        ask(h, s, "map-change");
+        expect(h, s, "mp: clients run First Awakening without archaeology", a -> a.get("map").equals(map.name()) && a.get("mission").equals("true")
+            && a.get("foundry").equals("false") && a.get("west").equals("-"));
+        loadFoundry(s);
+        s.until("mp: both clients join a fresh Buried Foundry", () -> Groups.player.count(p -> p.unit() != null && !p.dead()) >= 2, 120f, null);
+        s.wait(2f);
+        s.check("mp: the fresh foundry starts over on the server", () -> west().siteState == SiteState.unexplored && east().siteState == SiteState.unexplored
+            && archive().siteState == SiteState.unexplored && archive().investigation == 0f && state.rules.isBanned(ancientPlatform) && Vesper.foundry.completed == 0, this::foundrySnapshot);
+        ask(h, s, "fresh");
+        expect(h, s, "mp: clients see a fresh foundry", a -> a.get("west").equals("unexplored") && a.get("east").equals("unexplored")
+            && a.get("archive").equals("unexplored") && a.get("platform").equals("locked"));
+        //the archive: its unlock travels as a rules change, and releases the final waves
+        rig(s, 52, 74, 54, 74, MultiplayerHost::archive, 0.9f);
+        s.until("mp: the server reads the archive", () -> archive().siteState == SiteState.investigated, 30f, () -> (int)(archive().investigation * 100) + "%");
+        s.wait(2f);
+        ask(h, s, "archive");
+        expect(h, s, "mp: both clients get the Ancient Platform unlocked and the final waves released", a -> a.get("archive").equals("investigated")
+            && a.get("platform").equals("open") && a.get("foundryReleased").equals("true") && a.get("winWave").equals(String.valueOf(BuriedFoundry.attackWaves + 1)));
+        s.run(() -> {
+            Groups.unit.each(u -> u.team == state.rules.waveTeam, Unit::kill);
+            state.wave = state.rules.winWave;
+        });
+        s.until("mp: the server declares The Buried Foundry won", () -> h.lastWinner == state.rules.defaultTeam, 30f, () -> "objectives " + Vesper.foundry.completed);
+        s.wait(2f);
+        ask(h, s, "foundry-victory");
+        expect(h, s, "mp: both clients see The Buried Foundry victory", a -> a.get("gameover").equals("true") && a.get("won").equals("true")
+            && a.get("foundryVictory").equals("true") && a.get("foundryObjective").equals("done"));
+        s.run(() -> {
+            for(Player p : Groups.player) Call.clientPacketReliable(p.con, packet, "shot:mp-foundry-victory");
+        });
+        s.wait(2f);
+
         s.run(() -> {
             for(Player p : Groups.player) Call.clientPacketReliable(p.con, packet, "bye");
         });
         s.wait(3f);
+    }
+
+    void loadFoundry(Script s){
+        s.run(() -> {
+            foundry = Worlds.bundled(ContentSuite.foundryName);
+            WorldReloader reloader = new WorldReloader();
+            reloader.begin();
+            Rules rules = foundry.applyRules(Gamemode.survival);
+            world.loadMap(foundry, rules);
+            state.rules = rules;
+            logic.play();
+            reloader.end();
+            //test setup: a container against each buried machine takes what its dismantling releases
+            world.tile(33, 50).setNet(Blocks.container, state.rules.defaultTeam, 0);
+            world.tile(78, 50).setNet(Blocks.container, state.rules.defaultTeam, 0);
+        });
+    }
+
+    /**
+     * Test setup: a power source and a survey rig stocked with circuits next to a site, the survey already at the
+     * given fraction (the rest is the rig's work on the server).
+     */
+    void rig(Script s, int rigX, int rigY, int powerX, int powerY, Prov<SiteBuild> site, float start){
+        s.run(() -> {
+            Team team = state.rules.defaultTeam;
+            world.tile(powerX, powerY).setNet(Blocks.powerSource, team, 0);
+            world.tile(rigX, rigY).setNet(surveyRig, team, 0);
+        });
+        s.wait(1f);
+        s.run(() -> {
+            world.build(powerX, powerY).configure(world.build(rigX, rigY).pos());
+            world.build(rigX, rigY).items.add(recoveredCircuit, 10);
+            site.get().investigation = start;
+        });
+    }
+
+    int salvageAtSave;
+
+    static SiteBuild west(){
+        return Worlds.at(BuriedFoundryMap.westX, BuriedFoundryMap.westY, 3) instanceof SiteBuild b ? b : null;
+    }
+
+    static SiteBuild east(){
+        return Worlds.at(BuriedFoundryMap.eastX, BuriedFoundryMap.eastY, 3) instanceof SiteBuild b ? b : null;
+    }
+
+    static SiteBuild archive(){
+        return Worlds.at(BuriedFoundryMap.archiveX, BuriedFoundryMap.archiveY, 2) instanceof SiteBuild b ? b : null;
+    }
+
+    SiteBuild restored(){
+        return westRestores ? west() : east();
+    }
+
+    SiteBuild dismantled(){
+        return westRestores ? east() : west();
+    }
+
+    /** What the dismantled machine's container received: alloy+circuits+scrap (the containers stand against each machine). */
+    String salvage(){
+        Building c = westRestores ? world.build(78, 50) : world.build(33, 50);
+        return c == null ? "-" : c.items.get(structuralAlloy) + "+" + c.items.get(recoveredCircuit) + "+" + c.items.get(conductiveScrap);
+    }
+
+    String foundrySnapshot(){
+        StringBuilder out = new StringBuilder();
+        for(SiteBuild b : new SiteBuild[]{west(), east(), archive()}){
+            out.append(b == null ? "-" : b.siteState + " " + (int)(b.investigation * 100) + "% " + new IntSeq(b.delivered)).append(" | ");
+        }
+        return out.append("foundry=").append(Vesper.foundry.completed).append(" platform=").append(state.rules.isBanned(ancientPlatform) ? "locked" : "open").toString();
     }
 
     /** Sends a query to every client and waits until both answered (or 15 s pass). */

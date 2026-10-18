@@ -180,6 +180,148 @@ tasks.register<JavaExec>("runClient"){
     }
 }
 
+tasks.register("runCampaign"){
+    group = "vesper"
+    description = "Plays Chapter One as a campaign in a profile of its own (run/campaign, recreated unless -PcampaignKeep): " +
+        "one client start per phase (-PcampaignPhases=campaign-1,...), so each phase finds what the last one saved. " +
+        "Reports and screenshots go to run/campaign-reports; fails if a phase fails. -PharnessSpeed, -PharnessWindow and -PharnessLocale as runClient."
+    val modJar = tasks.jar.flatMap{ it.archiveFile }
+    val harnessFile = harnessJar.flatMap{ it.archiveFile }
+    dependsOn(tasks.jar, harnessJar, downloadGame)
+    doLast{
+        val phases = ((project.findProperty("campaignPhases") as String?) ?: "campaign-1,campaign-2,campaign-3,campaign-4").split(",").map{ it.trim() }
+        val speed = (project.findProperty("harnessSpeed") as String?) ?: "1"
+        val window = project.findProperty("harnessWindow") as String?
+        val locale = project.findProperty("harnessLocale") as String?
+        val profile = runDir.dir("campaign").asFile
+        val reports = runDir.dir("campaign-reports").asFile
+        if(!project.hasProperty("campaignKeep")) profile.deleteRecursively()
+        reports.mkdirs()
+        val mods = File(profile, "mods")
+        mods.mkdirs()
+        mods.listFiles()?.forEach{ it.delete() }
+        modJar.get().asFile.copyTo(File(mods, "VesperDesktop.jar"), true)
+        harnessFile.get().asFile.copyTo(File(mods, "VesperHarness.jar"), true)
+        val java = File(System.getProperty("java.home"), "bin/java").absolutePath
+        for(phase in phases){
+            val args = mutableListOf(java, "-Dmindustry.data.dir=${profile.absolutePath}", "-Dvesper.harness=$phase", "-Dvesper.harness.speed=$speed")
+            if(window != null) args.add("-Dvesper.harness.window=$window")
+            if(locale != null){
+                val parts = locale.split("_")
+                args.addAll(listOf("-Duser.language=${parts[0]}", "-Duser.country=${parts.getOrElse(1){ "" }}"))
+            }
+            args.addAll(listOf("-cp", gameJar.absolutePath, "mindustry.desktop.DesktopLauncher"))
+            val log = File(reports, "$phase.log")
+            val process = ProcessBuilder(args).directory(runDir.asFile).redirectErrorStream(true).redirectOutput(log).start()
+            val finished = process.waitFor(60, TimeUnit.MINUTES)
+            if(!finished) process.destroy()
+            val out = File(profile, "vesper-harness")
+            File(out, "report.txt").takeIf{ it.exists() }?.copyTo(File(reports, "$phase-report.txt"), true)
+            File(out, "shots").takeIf{ it.exists() }?.copyRecursively(File(reports, "$phase-shots"), true)
+            //the profile as this phase left it, for the interface runs (runCampaignUi) and for diagnosis
+            val snapshot = runDir.dir("campaign-snapshots/$phase").asFile
+            snapshot.deleteRecursively()
+            profile.copyRecursively(snapshot, true)
+            if(!finished) throw GradleException("Campaign phase $phase timed out; see $log")
+            if(process.exitValue() != 0) throw GradleException("Campaign phase $phase failed; see ${File(reports, "$phase-report.txt")}")
+        }
+    }
+}
+
+tasks.register("runCampaignUi"){
+    group = "vesper"
+    description = "The campaign's screens in the profiles runCampaign left (run/campaign-snapshots): after First Awakening and after the " +
+        "chapter, in English and Portuguese, at the default window size and at 1280x720. Screenshots and reports in run/campaign-ui-reports."
+    val modJar = tasks.jar.flatMap{ it.archiveFile }
+    val harnessFile = harnessJar.flatMap{ it.archiveFile }
+    dependsOn(tasks.jar, harnessJar, downloadGame)
+    doLast{
+        val reports = runDir.dir("campaign-ui-reports").asFile
+        reports.deleteRecursively()
+        reports.mkdirs()
+        val java = File(System.getProperty("java.home"), "bin/java").absolutePath
+        val failed = mutableListOf<String>()
+        for((state, snapshotName) in listOf("campaign-ui-a" to "campaign-1", "campaign-ui-b" to "campaign-3")){
+            val snapshot = runDir.dir("campaign-snapshots/$snapshotName").asFile
+            if(!snapshot.exists()) throw GradleException("No $snapshotName profile in $snapshot: run runCampaign first")
+            for(locale in listOf("en_US", "pt_BR")){
+                for(window in listOf("default", "1280x720")){
+                    val profile = runDir.dir("campaign-ui").asFile
+                    profile.deleteRecursively()
+                    snapshot.copyRecursively(profile, true)
+                    val mods = File(profile, "mods")
+                    mods.listFiles()?.forEach{ it.delete() }
+                    modJar.get().asFile.copyTo(File(mods, "VesperDesktop.jar"), true)
+                    harnessFile.get().asFile.copyTo(File(mods, "VesperHarness.jar"), true)
+                    val parts = locale.split("_")
+                    val args = mutableListOf(java, "-Dmindustry.data.dir=${profile.absolutePath}", "-Dvesper.harness=$state", "-Dvesper.harness.speed=1",
+                        "-Duser.language=${parts[0]}", "-Duser.country=${parts[1]}")
+                    if(window != "default") args.add("-Dvesper.harness.window=$window")
+                    args.addAll(listOf("-cp", gameJar.absolutePath, "mindustry.desktop.DesktopLauncher"))
+                    val name = "$state-$locale-$window"
+                    val process = ProcessBuilder(args).directory(runDir.asFile).redirectErrorStream(true).redirectOutput(File(reports, "$name.log")).start()
+                    val finished = process.waitFor(15, TimeUnit.MINUTES)
+                    if(!finished) process.destroy()
+                    val out = File(profile, "vesper-harness")
+                    File(out, "report.txt").takeIf{ it.exists() }?.copyTo(File(reports, "$name-report.txt"), true)
+                    File(out, "shots").takeIf{ it.exists() }?.copyRecursively(File(reports, "shots"), true)
+                    if(!finished || process.exitValue() != 0) failed.add(name)
+                }
+            }
+        }
+        if(failed.isNotEmpty()) throw GradleException("Campaign interface checks failed: " + failed.joinToString() + " (see $reports)")
+    }
+}
+
+tasks.register("runCampaignMultiplayer"){
+    group = "vesper"
+    description = "A campaign sector hosted by a player: the host starts from the profile campaign-1 left (run/campaign-snapshots, " +
+        "run runCampaign first), plays Resonance Fault and hosts it; a second client with a clean profile joins (run/campaign-mp). " +
+        "Each side records its own checks; fails if either fails. Only the processes started here are stopped."
+    val modJar = tasks.jar.flatMap{ it.archiveFile }
+    val harnessFile = harnessJar.flatMap{ it.archiveFile }
+    dependsOn(tasks.jar, harnessJar, downloadGame)
+    doLast{
+        val snapshot = runDir.dir("campaign-snapshots/campaign-1").asFile
+        if(!snapshot.exists()) throw GradleException("No campaign-1 profile in $snapshot: run runCampaign first")
+        val mp = runDir.dir("campaign-mp").asFile
+        val speed = (project.findProperty("harnessSpeed") as String?) ?: "3"
+        val port = "6578"
+        mp.deleteRecursively()
+        val host = File(mp, "host")
+        val guest = File(mp, "guest")
+        snapshot.copyRecursively(host, true)
+        for(profile in listOf(host, guest)){
+            val mods = File(profile, "mods")
+            mods.mkdirs()
+            mods.listFiles()?.forEach{ it.delete() }
+            modJar.get().asFile.copyTo(File(mods, "VesperDesktop.jar"), true)
+            harnessFile.get().asFile.copyTo(File(mods, "VesperHarness.jar"), true)
+        }
+        val java = File(System.getProperty("java.home"), "bin/java").absolutePath
+        val started = mutableListOf<Process>()
+        fun launch(profile: File, phase: String, log: String, vararg extra: String): Process =
+            //two clients at once: a bounded heap keeps them within a 16 GB machine running other programs
+            ProcessBuilder(java, "-Xmx1g", "-Dmindustry.data.dir=${profile.absolutePath}", "-Dvesper.harness=$phase", "-Dvesper.harness.speed=$speed",
+                "-Dvesper.mp.port=$port", *extra, "-cp", gameJar.absolutePath, "mindustry.desktop.DesktopLauncher")
+                .directory(runDir.asFile).redirectErrorStream(true).redirectOutput(File(mp, log)).start().also{ started.add(it) }
+        try{
+            val hostProcess = launch(host, "campaign-mp-host", "host.log")
+            //the guest keeps trying to connect until the host has landed and hosts
+            Thread.sleep(20_000)
+            val guestProcess = launch(guest, "campaign-mp-client", "guest.log", "-Dvesper.mp.name=Bravo")
+            if(!hostProcess.waitFor(45, TimeUnit.MINUTES)) throw GradleException("The campaign host timed out; see ${File(mp, "host.log")}")
+            guestProcess.waitFor(120, TimeUnit.SECONDS)
+            val failed = mutableListOf<String>()
+            if(hostProcess.exitValue() != 0) failed.add("host (${File(host, "vesper-harness/report.txt")})")
+            if(guestProcess.isAlive || guestProcess.exitValue() != 0) failed.add("guest (${File(guest, "vesper-harness/report.txt")})")
+            if(failed.isNotEmpty()) throw GradleException("Campaign multiplayer checks failed: " + failed.joinToString())
+        }finally{
+            started.filter{ it.isAlive }.forEach{ it.destroy() }
+        }
+    }
+}
+
 //dedicated server: the headless suites (also run in CI) and the local multiplayer test host
 val serverDir = runDir.dir("server")
 val serverJar = serverDir.file("server-release-$mindustryVersion.jar").asFile
@@ -252,7 +394,8 @@ tasks.register("runMultiplayer"){
                 Thread.sleep(500)
             }
             for(name in listOf("Alpha", "Bravo")){
-                launch("${name.lowercase()}.log", runDir.asFile, "-Dmindustry.data.dir=${File(mp, name.lowercase()).absolutePath}",
+                //a bounded heap keeps three game processes within a 16 GB machine running other programs
+                launch("${name.lowercase()}.log", runDir.asFile, "-Xmx1g", "-Dmindustry.data.dir=${File(mp, name.lowercase()).absolutePath}",
                     "-Dvesper.harness=mp-client", "-Dvesper.mp.name=$name", "-Dvesper.mp.port=$port",
                     "-cp", gameJar.absolutePath, "mindustry.desktop.DesktopLauncher")
                 Thread.sleep(8_000)

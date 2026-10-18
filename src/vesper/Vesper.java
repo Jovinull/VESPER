@@ -1,7 +1,9 @@
 package vesper;
 
 import arc.util.*;
+import mindustry.ctype.*;
 import mindustry.mod.*;
+import vesper.campaign.*;
 import vesper.content.*;
 import vesper.mission.*;
 import vesper.systems.*;
@@ -15,6 +17,8 @@ public class Vesper extends Mod{
     public static FirstAwakening mission;
     public static ResonanceFault fault;
     public static BuriedFoundry foundry;
+    /** Chapter One of the campaign on the VESPER planet. */
+    public static Chapter chapter;
 
     @Override
     public void init(){
@@ -22,6 +26,7 @@ public class Vesper extends Mod{
         mission = new FirstAwakening();
         fault = new ResonanceFault();
         foundry = new BuriedFoundry();
+        chapter = new Chapter();
         if(!headless) new BasinHud();
     }
 
@@ -35,5 +40,12 @@ public class Vesper extends Mod{
         VItems.load();
         VUnits.load();
         VBlocks.load();
+        VPlanets.load();
+        VSectors.load();
+
+        //the Core Database lists everything Vesper adds under the planet's own tab
+        content.each(c -> {
+            if(c instanceof UnlockableContent u && c.minfo.mod != null && c.minfo.mod.name.equals("vesper")) u.databaseTabs.add(VPlanets.vesper);
+        });
     }
 }

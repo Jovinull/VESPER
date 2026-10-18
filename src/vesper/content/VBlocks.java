@@ -21,6 +21,7 @@ import vesper.graphics.*;
 import vesper.systems.*;
 import vesper.world.*;
 
+import static mindustry.Vars.*;
 import static mindustry.type.ItemStack.*;
 import static vesper.content.VItems.*;
 
@@ -54,6 +55,12 @@ public class VBlocks{
 
     //industrial archaeology
     surveyRig, ancientRecoverer, archiveTerminal;
+
+    /**
+     * Visibility of every buildable Vesper block: everywhere but the campaigns of other planets, where the tech tree
+     * would otherwise show what it unlocks on VESPER. Custom games are unchanged.
+     */
+    public static final BuildVisibility vesperOnly = new BuildVisibility(() -> state == null || !state.isCampaign() || state.getPlanet() == VPlanets.vesper);
 
     public static void load(){
         machineBasalt = new Floor("machine-basalt", 3);
@@ -410,5 +417,11 @@ public class VBlocks{
         weights.put(reinforcedDrill, 2f);
         weights.put(crystalExtractor, 4f);
         PlanetaryActivity.resonant.addAll(crystalExtractor, experimentalResonator, ancientRecoverer);
+
+        for(Block block : new Block[]{transitBelt, cargoRouter, cargoJunction, cargoBridge, industrialConduit, resonanceLink, surveyDrill, reinforcedDrill,
+            scrapCollector, crystalExtractor, structuralForge, scrapRecycler, alloyRefinery, mineralCompressor, combustionEngine, powerAccumulator,
+            experimentalResonator, componentAssembler, reinforcedWall, heavyWall, kineticTurret, pulseTurret, ancientPlatform, stabilizerPylon, surveyRig}){
+            if(block.buildVisibility == BuildVisibility.shown) block.buildVisibility = vesperOnly;
+        }
     }
 }

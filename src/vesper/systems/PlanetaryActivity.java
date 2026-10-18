@@ -191,7 +191,8 @@ public class PlanetaryActivity{
             return;
         }
         if(state.rules != bound) bind();
-        if(!active || net.client() || state.isPaused() || state.gameOver) return;
+        //a captured campaign sector is secured: its waves are over and the basin stops answering (no more patrols or pulses)
+        if(!active || net.client() || state.isPaused() || state.gameOver || (state.isCampaign() && !state.rules.waves)) return;
 
         if(pending >= 0f){
             pending -= Time.delta;

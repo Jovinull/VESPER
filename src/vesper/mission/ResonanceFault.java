@@ -5,6 +5,7 @@ import arc.struct.*;
 import arc.util.*;
 import mindustry.game.*;
 import mindustry.game.EventType.*;
+import mindustry.gen.*;
 import mindustry.world.*;
 import vesper.content.*;
 
@@ -15,7 +16,7 @@ import static mindustry.Vars.*;
  * the fault and store it in the core while the native waves keep coming. How hard the basin is pushed is the
  * player's choice: stabilizers keep it quiet and the extractors slow; the reactor and heavy industry make the
  * resonance machines up to twice as fast but bring pulses and patrols. The game declares victory (native game
- * over, the player's team winning) once the core holds the goal. Only maps tagged
+ * over, the player's team winning; in the campaign, the native sector capture) once the core holds the goal. Only maps tagged
  * {@code vesper.scenario=resonance-fault} are affected; progress persists in the {@code vesper.fault} tag.
  */
 public class ResonanceFault implements Scenario{
@@ -45,11 +46,11 @@ public class ResonanceFault implements Scenario{
             active = false;
         });
         Events.on(GameOverEvent.class, e -> {
-            if(active() && e.winner == state.rules.defaultTeam){
-                victory = true;
-                completed = objectives.size;
-                save();
-            }
+            if(active() && e.winner == state.rules.defaultTeam) win();
+        });
+        //in the campaign the native capture is the victory (the game has no game over to win)
+        Events.on(SectorCaptureEvent.class, e -> {
+            if(active() && e.sector == state.rules.sector) win();
         });
     }
 
@@ -84,6 +85,12 @@ public class ResonanceFault implements Scenario{
         return core == null ? 0 : core.items.get(VItems.resonanceCrystal);
     }
 
+    private void win(){
+        victory = true;
+        completed = objectives.size;
+        if(!net.client()) save();
+    }
+
     static int count(Block block, boolean working){
         return state.rules.defaultTeam.data().getBuildings(block).count(b -> !working || b.efficiency > 0f);
     }
@@ -103,10 +110,14 @@ public class ResonanceFault implements Scenario{
             completed++;
             if(!net.client()) save();
         }
-        //every objective done: the game declares the player's victory, the way the native win wave does
-        if(!net.client() && completed >= objectives.size){
-            state.gameOver = true;
-            Events.fire(new GameOverEvent(state.rules.defaultTeam));
+        //every objective done: the game declares the player's victory, the way the native win wave does (a capture in the campaign)
+        if(!net.client() && completed >= objectives.size && !victory){
+            if(state.isCampaign()){
+                Call.sectorCapture();
+            }else{
+                state.gameOver = true;
+                Events.fire(new GameOverEvent(state.rules.defaultTeam));
+            }
         }
     }
 

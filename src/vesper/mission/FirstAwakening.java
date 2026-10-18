@@ -23,7 +23,8 @@ import static mindustry.Vars.*;
  * declares victory once the last wave is destroyed.</li>
  * </ul>
  * Native map objectives are not used: while one is displayed, the HUD hides the wave countdown, which this
- * mission needs. Only maps tagged {@code vesper.scenario=first-awakening} are affected.
+ * mission needs. In the campaign the last wave captures the sector instead (native), which is the victory too.
+ * Only maps tagged {@code vesper.scenario=first-awakening} are affected.
  */
 public class FirstAwakening implements Scenario{
     public static final String tagScenario = "vesper.scenario", scenarioId = "first-awakening", tagState = "vesper.mission";
@@ -53,7 +54,7 @@ public class FirstAwakening implements Scenario{
             () -> reactor() == null ? "" : (int)(reactor().progress() * 100f) + "%"));
         objectives.add(new Objective("ignite", () -> Vesper.activity.awakened || (reactor() != null && reactor().ignited), null));
         //same numbers as the native wave counter next to it
-        objectives.add(new Objective("survive", () -> victory && state.gameOver,
+        objectives.add(new Objective("survive", () -> victory,
             () -> Core.bundle.format("vesper.objective.wave", state.wave, state.rules.winWave > 0 ? state.rules.winWave : attackWaves + 1)));
 
         Events.run(Trigger.update, this::update);
@@ -62,12 +63,18 @@ public class FirstAwakening implements Scenario{
             active = false;
         });
         Events.on(GameOverEvent.class, e -> {
-            if(active() && e.winner == state.rules.defaultTeam){
-                victory = true;
-                completed = objectives.size;
-                save();
-            }
+            if(active() && e.winner == state.rules.defaultTeam) win();
         });
+        //in the campaign the native capture is the victory (the game has no game over to win)
+        Events.on(SectorCaptureEvent.class, e -> {
+            if(active() && e.sector == state.rules.sector) win();
+        });
+    }
+
+    private void win(){
+        victory = true;
+        completed = objectives.size;
+        if(!net.client()) save();
     }
 
     private void count(String key, Block block, int amount){

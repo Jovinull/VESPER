@@ -44,7 +44,7 @@ public class BuriedFoundry implements Scenario{
             SiteState.restoring, SiteState.restored, SiteState.dismantled) > 0, null));
         objectives.add(new Objective("foundry-decide", () -> sites(VBlocks.ancientRecoverer, SiteState.restored, SiteState.dismantled) > 0, null));
         objectives.add(new Objective("foundry-archive", () -> sites(VBlocks.archiveTerminal, SiteState.investigated) > 0, null));
-        objectives.add(new Objective("foundry-survive", () -> victory && state.gameOver,
+        objectives.add(new Objective("foundry-survive", () -> victory,
             () -> Core.bundle.format("vesper.objective.wave", state.wave, state.rules.winWave > 0 ? state.rules.winWave : attackWaves + 1)));
 
         Events.run(Trigger.update, this::update);
@@ -53,12 +53,18 @@ public class BuriedFoundry implements Scenario{
             active = false;
         });
         Events.on(GameOverEvent.class, e -> {
-            if(active() && e.winner == state.rules.defaultTeam){
-                victory = true;
-                completed = objectives.size;
-                save();
-            }
+            if(active() && e.winner == state.rules.defaultTeam) win();
         });
+        //in the campaign the native capture is the victory (the game has no game over to win)
+        Events.on(SectorCaptureEvent.class, e -> {
+            if(active() && e.sector == state.rules.sector) win();
+        });
+    }
+
+    private void win(){
+        victory = true;
+        completed = objectives.size;
+        if(!net.client()) save();
     }
 
     private Objective count(String key, Block block, int amount){

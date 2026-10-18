@@ -1,17 +1,24 @@
 package vesper.harness.suites;
 
 import arc.*;
+import arc.func.*;
 import arc.math.geom.*;
 import arc.scene.*;
+import arc.scene.ui.*;
 import arc.scene.ui.layout.*;
 import arc.struct.*;
 import arc.util.*;
 import mindustry.content.*;
 import mindustry.game.*;
 import mindustry.gen.*;
+import mindustry.type.*;
 import vesper.*;
 import vesper.harness.*;
+import vesper.harness.maps.*;
+import vesper.mission.*;
 import vesper.systems.PlanetaryActivity.*;
+import vesper.world.*;
+import vesper.world.AncientSite.*;
 import vesper.world.DerelictReactor.*;
 
 import static mindustry.Vars.*;
@@ -21,7 +28,8 @@ import static vesper.content.VItems.*;
 /**
  * HUD inspection, not gameplay: the mission state is set directly (reactor filled, wave counter moved, victory
  * forced; on Resonance Fault a stabilizer and extractors placed and the activity surge held) to show each HUD state
- * quickly, including the tallest panel (a patrol and a pulse announced at once). Run it per window size and language (-PharnessWindow=1280x720
+ * quickly, including the tallest panel (a patrol and a pulse announced at once); on The Buried Foundry a buried
+ * machine's panel is opened in each state and its choice dialog used. Run it per window size and language (-PharnessWindow=1280x720
  * -PharnessLocale=pt_BR); each state is captured and the panel must stay on screen without covering any vanilla
  * HUD element (wave panel, minimap, build menu...).
  */
@@ -123,6 +131,125 @@ public class UiSuite implements VesperHarness.Suite{
             holdShock = -1f;
             Groups.unit.each(u -> u.team == state.rules.waveTeam, Unit::kill);
         });
+
+        //The Buried Foundry: the mission, a buried machine's panel in each state (states set as test setup), the choice dialog, the hold
+        s.run(() -> Worlds.play(Worlds.bundled(ContentSuite.foundryName), Gamemode.survival));
+        //switching maps in the same frame skips the menu, where the game drops a showing announcement: let the last one fade
+        s.wait(5f);
+        s.check("ui: The Buried Foundry shows its mission", () -> Vesper.scenario() == Vesper.foundry, () -> "");
+        state(h, s, "8-foundry-start");
+        site(h, s, "9-site-unexplored", FoundrySuite::west, false);
+        s.run(() -> {
+            FoundrySuite.west().investigation = 1f;
+            FoundrySuite.west().siteState = SiteState.investigated;
+        });
+        site(h, s, "10-site-investigated", FoundrySuite::west, true);
+        //the restore button asks first, with the cost; cancelling changes nothing
+        s.run(() -> choiceButton(0).fireClick());
+        s.wait(0.5f);
+        s.check("ui: restoring asks for confirmation, with its cost", () -> Core.scene.getDialog() != null
+            && dialogText().contains(ArchaeologySuite.restorationCost().first() + " " + structuralAlloy.localizedName), UiSuite::dialogText);
+        h.shot("ui-" + System.getProperty("vesper.harness.window", "default") + "-" + language() + "-11-restore-dialog", 31, 51, 3f, true);
+        s.run(() -> Core.scene.getDialog().hide());
+        s.wait(0.5f);
+        s.check("ui: cancelling the dialog changes nothing", () -> FoundrySuite.west().siteState == SiteState.investigated, () -> "" + FoundrySuite.west().siteState);
+        //confirming applies the choice, and the open panel drops the buttons
+        s.run(() -> choiceButton(1).fireClick());
+        s.wait(0.5f);
+        s.run(() -> Core.scene.getDialog().buttons.getChildren().peek().fireClick());
+        s.wait(1f);
+        s.check("ui: confirming dismantles; the open panel shows the dismantling without the choice", () -> FoundrySuite.west().siteState == SiteState.dismantling
+            && control.input.config.isShown() && Core.scene.find("vesper-site-choices") == null, () -> "" + FoundrySuite.west().siteState);
+        site(h, s, "12-site-dismantling", FoundrySuite::west, false);
+        s.run(() -> {
+            control.input.config.hideConfig();
+            FoundrySuite.east().investigation = 1f;
+            FoundrySuite.east().siteState = SiteState.investigated;
+            FoundrySuite.east().configure(AncientSite.chooseRestore);
+            ArchaeologySuite.give(FoundrySuite.east(), structuralAlloy, 60);
+        });
+        site(h, s, "13-site-restoring", FoundrySuite::east, false);
+        s.run(() -> {
+            for(ItemStack stack : ((AncientSite)ancientRecoverer).restoration) ArchaeologySuite.give(FoundrySuite.east(), stack.item, stack.amount);
+        });
+        s.wait(0.5f);
+        site(h, s, "14-site-restored", FoundrySuite::east, false);
+        s.run(() -> {
+            control.input.config.hideConfig();
+            state.wave = BuriedFoundry.holdWave;
+        });
+        s.waitFor(() -> Vesper.foundry.holding(), 10f);
+        s.check("ui: The Buried Foundry holds its fourth wave until the archive is read", () -> Vesper.foundry.holding(), () -> "");
+        state(h, s, "15-foundry-hold");
+    }
+
+    /** Opens a buried machine's panel as a tap does: it must be on screen and translated, with the two choices only when it offers them. */
+    void site(VesperHarness h, Script s, String name, Prov<SiteBuild> site, boolean choices){
+        boolean west = name.contains("unexplored") || name.contains("investigated") || name.contains("dismantling");
+        int cx = west ? BuriedFoundryMap.westX + 1 : BuriedFoundryMap.eastX + 1, cy = BuriedFoundryMap.westY + 1;
+        //the panel opens under its building, so the camera goes there first (as a player taps what is on screen)
+        s.run(() -> h.look(cx, cy, 3f));
+        s.wait(0.3f);
+        s.run(() -> control.input.config.showConfig(site.get()));
+        s.wait(0.6f);
+        s.run(() -> {
+            SiteBuild b = site.get();
+            h.check("ui " + tag + " " + name + ": the machine's panel opens", control.input.config.isShown() && control.input.config.getSelected() == b, "");
+            Element panel = configTable();
+            if(panel == null || find(panel, b.infoText()) == null){
+                h.fail("ui " + tag + " " + name + ": the machine's panel is on screen", "the panel or its text was not found");
+            }else{
+                Rect p = bounds(panel);
+                float w = Core.graphics.getWidth(), ht = Core.graphics.getHeight();
+                h.check("ui " + tag + " " + name + ": the machine's panel is on screen", p.x >= 0 && p.y >= 0 && p.x + p.width <= w + 0.5f && p.y + p.height <= ht + 0.5f,
+                    "panel " + fmt(p) + " in " + (int)w + "x" + (int)ht);
+            }
+            boolean offers = Core.scene.find("vesper-site-choices") != null;
+            h.check("ui " + tag + " " + name + ": " + (choices ? "it offers restore and dismantle" : "it offers no choice"), offers == choices
+                && (!choices || (choiceButton(0).getText().toString().equals(Core.bundle.get("vesper.site.restore"))
+                && choiceButton(1).getText().toString().equals(Core.bundle.get("vesper.site.dismantle")))), "");
+            h.check("ui " + tag + " " + name + ": the text is translated", !b.infoText().contains("vesper.") && !b.infoText().contains("???"), b.infoText());
+            h.line("ui " + tag + " " + name + ": " + b.infoText().replace('\n', ' '));
+        });
+        h.shot("ui-" + System.getProperty("vesper.harness.window", "default") + "-" + language() + "-" + name, cx, cy, 3f, true);
+    }
+
+    /** The table the game shows a building's configuration in (package-private in the game). */
+    static @Nullable Element configTable(){
+        try{
+            var field = mindustry.ui.fragments.BlockConfigFragment.class.getDeclaredField("table");
+            field.setAccessible(true);
+            return (Element)field.get(control.input.config);
+        }catch(Exception e){
+            return null;
+        }
+    }
+
+    /** The label showing exactly this text, anywhere under the element. */
+    static @Nullable Element find(Element e, String text){
+        if(e instanceof Label l && l.getText().toString().equals(text)) return l;
+        if(e instanceof Group g){
+            for(Element c : g.getChildren()){
+                Element found = find(c, text);
+                if(found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    static TextButton choiceButton(int index){
+        return Core.scene.find("vesper-site-choices") instanceof Table t ? (TextButton)t.getChildren().get(index) : null;
+    }
+
+    static String dialogText(){
+        StringBuilder out = new StringBuilder();
+        if(Core.scene.getDialog() != null) text(Core.scene.getDialog(), out);
+        return out.toString();
+    }
+
+    static void text(Element e, StringBuilder out){
+        if(e instanceof Label l) out.append(l.getText()).append(' ');
+        if(e instanceof Group g) for(Element c : g.getChildren()) text(c, out);
     }
 
     /** The desktop backend (SDL) can resize its window, but the cross-platform Graphics API has no call for it. */

@@ -27,7 +27,8 @@ public class ContentSuite implements VesperHarness.Suite{
             Seq<String> missingIcons = new Seq<>(), absent = new Seq<>();
             for(Seq<Content> list : content.getContentMap()){
                 for(Content c : list){
-                    if(c.minfo.mod == null || !c.minfo.mod.name.equals("vesper") || !(c instanceof UnlockableContent u)) continue;
+                    //planets have no icon of their own (the planet list uses a font icon), vanilla's neither
+                    if(c.minfo.mod == null || !c.minfo.mod.name.equals("vesper") || !(c instanceof UnlockableContent u) || c instanceof mindustry.type.Planet) continue;
                     checked++;
                     if(u.fullIcon == null || !u.fullIcon.found() || u.uiIcon == null || !u.uiIcon.found()) missingIcons.add(u.name);
                     regions(u, u.getClass(), u.name + ".", absent);

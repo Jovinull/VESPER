@@ -1,6 +1,7 @@
 package vesper.harness;
 
 import arc.*;
+import arc.func.*;
 import arc.math.*;
 import arc.struct.*;
 import arc.util.*;
@@ -16,7 +17,7 @@ import static mindustry.Vars.*;
 /**
  * A scripted player for playthrough tests. It plays through the same channels as a person: build plans go to
  * the player's core unit, which builds them with items from the core (construction stalls when the core runs
- * out), it flies at the unit's own speed, and it carries items from the core to the reactor with the unit
+ * out), it flies at the unit's own speed, and it carries items from the core to a building with the unit
  * (request + deposit, 30 items per trip). No cheats, no free items.
  */
 public class Bot{
@@ -36,8 +37,9 @@ public class Bot{
     public int rebuilt;
     float rebuildTimer;
 
-    //delivery to the reactor
-    @Nullable ReactorBuild reactor;
+    //delivery to a building (the reactor, a site under restoration, a survey rig): how many more it needs
+    @Nullable Building target;
+    @Nullable Intf<Item> need;
     @Nullable Item deliveryItem;
 
     public Bot(){
@@ -47,7 +49,8 @@ public class Bot{
             wanted.clear();
             unitId = -1;
             own = null;
-            reactor = null;
+            target = null;
+            need = null;
             deliveryItem = null;
             active = false;
         });
@@ -81,9 +84,20 @@ public class Bot{
     }
 
     /** Carries items from the core into the reactor until it needs no more of that item. */
-    public void deliver(ReactorBuild target, Item item){
-        reactor = target;
+    public void deliver(ReactorBuild reactor, Item item){
+        deliver(reactor, item, reactor::remaining);
+    }
+
+    /** Carries items from the core into a building until it needs no more of that item. */
+    public void deliver(Building building, Item item, Intf<Item> needs){
+        target = building;
+        need = needs;
         deliveryItem = item;
+    }
+
+    /** Whether a delivery is running. */
+    public boolean delivering(){
+        return deliveryItem != null;
     }
 
     /** True when every queued plan stands on the map and no delivery is running. */
@@ -176,17 +190,17 @@ public class Bot{
 
     void carry(Unit u){
         Building core = u.closestCore();
-        if(reactor == null || !reactor.isValid() || core == null || reactor.remaining(deliveryItem) <= 0){
+        if(target == null || !target.isValid() || core == null || need == null || need.get(deliveryItem) <= 0){
             deliveryItem = null;
             return;
         }
         if(u.stack.amount > 0 && u.stack.item == deliveryItem){
-            status = "carrying " + u.stack.amount + " " + deliveryItem.name + " to the reactor";
-            if(fly(u, reactor.x, reactor.y)) deposit(u, reactor);
+            status = "carrying " + u.stack.amount + " " + deliveryItem.name + " to " + target.block.name;
+            if(fly(u, target.x, target.y)) deposit(u, target);
         }else{
             if(fly(u, core.x, core.y)){
                 if(u.stack.amount > 0) deposit(u, core);
-                int want = Math.min(reactor.remaining(deliveryItem), u.type.itemCapacity);
+                int want = Math.min(need.get(deliveryItem), u.type.itemCapacity);
                 if(core.items.get(deliveryItem) >= want){
                     if(player != null) Call.requestItem(player, core, deliveryItem, want);
                     else Call.takeItems(core, deliveryItem, Math.min(u.maxAccepted(deliveryItem), want), u);

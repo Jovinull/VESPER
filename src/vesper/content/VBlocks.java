@@ -50,7 +50,10 @@ public class VBlocks{
     reinforcedWall, heavyWall, kineticTurret, pulseTurret, ancientPlatform,
 
     //special
-    coreFoothold, derelictReactor, stabilizerPylon, dataTerminal, recoverableRuin;
+    coreFoothold, derelictReactor, stabilizerPylon, dataTerminal, recoverableRuin,
+
+    //industrial archaeology
+    surveyRig, ancientRecoverer, archiveTerminal;
 
     public static void load(){
         machineBasalt = new Floor("machine-basalt", 3);
@@ -360,6 +363,41 @@ public class VBlocks{
             pulseMag = 0.5f;
         }};
 
+        //industrial archaeology (maps tagged vesper.archaeology): the rig a player builds and the installations a map places
+        surveyRig = new SurveyRig("survey-rig"){{
+            requirements(Category.effect, with(ferroprism, 30, structuralAlloy, 20, recoveredCircuit, 10));
+            size = 2;
+            health = 400;
+            consumePower(1f);
+            consumeItem(recoveredCircuit);
+        }};
+
+        ancientRecoverer = new AncientSite("ancient-recoverer"){{
+            requirements(Category.effect, BuildVisibility.sandboxOnly, with(structuralAlloy, 200));
+            size = 3;
+            health = 3000;
+            investigateTime = 30f * 60f;
+            investigateSurge = 6f;
+            salvage = with(structuralAlloy, 140, recoveredCircuit, 50, conductiveScrap, 120);
+            dismantleTime = 45f * 60f;
+            restoration = with(structuralAlloy, 100, recoveredCircuit, 40, resonanceCrystal, 30);
+            restoreSurge = 12f;
+            recipe = with(conductiveScrap, 4, resonanceCrystal, 1);
+            output = new ItemStack(resonanceCore, 1);
+            craftTime = 180f;
+            runningActivity = 8f;
+            consumePower(1f);
+        }};
+
+        archiveTerminal = new AncientSite("archive-terminal"){{
+            requirements(Category.effect, BuildVisibility.sandboxOnly, with(structuralAlloy, 40));
+            size = 2;
+            health = 1200;
+            investigateTime = 60f * 60f;
+            investigateSurge = 15f;
+            unlocks = ancientPlatform;
+        }};
+
         //planetary activity: how much a working building of each kind disturbs the basin
         var weights = PlanetaryActivity.weights;
         weights.put(structuralForge, 3f);
@@ -371,6 +409,6 @@ public class VBlocks{
         weights.put(componentAssembler, 5f);
         weights.put(reinforcedDrill, 2f);
         weights.put(crystalExtractor, 4f);
-        PlanetaryActivity.resonant.addAll(crystalExtractor, experimentalResonator);
+        PlanetaryActivity.resonant.addAll(crystalExtractor, experimentalResonator, ancientRecoverer);
     }
 }

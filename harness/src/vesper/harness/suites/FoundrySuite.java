@@ -44,11 +44,24 @@ public class FoundrySuite implements VesperHarness.Suite{
     float ticks, sampleTimer, levelSum, maxLevel, decided, archiveRead;
     int circuitsBefore, coresStart;
 
+    /** Played on The Buried Foundry sector (loaded by {@link CampaignSuite}); the victory is the native capture. */
+    final boolean campaign;
+
     /** @param mode salvage, restore or mixed */
     public FoundrySuite(String mode){
+        this(mode, false);
+    }
+
+    public FoundrySuite(String mode, boolean campaign){
         tag = "foundry-" + mode;
         restoreWest = !mode.equals("salvage");
         dismantleEast = !mode.equals("restore");
+        this.campaign = campaign;
+    }
+
+    /** The game declared The Buried Foundry won: a game over in a custom game, the sector's capture in the campaign. */
+    boolean won(VesperHarness h){
+        return campaign ? state.rules.sector != null && state.rules.sector.isCaptured() && Vesper.foundry.victory : h.lastWinner == state.rules.defaultTeam;
     }
 
     @Override
@@ -78,7 +91,7 @@ public class FoundrySuite implements VesperHarness.Suite{
         s.run(() -> {
             lost.clear();
             ticks = levelSum = maxLevel = sampleTimer = decided = archiveRead = 0f;
-            Worlds.play(Worlds.bundled(ContentSuite.foundryName), Gamemode.survival);
+            if(!campaign) Worlds.play(Worlds.bundled(ContentSuite.foundryName), Gamemode.survival);
             bot.active = true;
             bot.rebuild = true;
         });
@@ -251,10 +264,12 @@ public class FoundrySuite implements VesperHarness.Suite{
         }
 
         // --- the end
-        s.step(d -> h.lastWinner != null || ticks > 45f * 60f * 60f);
-        s.until(tag + ": VICTORY - the game declares The Buried Foundry won", () -> h.lastWinner == state.rules.defaultTeam, 1f,
+        s.step(d -> won(h) || h.lastWinner != null || ticks > 45f * 60f * 60f);
+        s.until(tag + (campaign ? ": VICTORY - the game captures The Buried Foundry sector" : ": VICTORY - the game declares The Buried Foundry won"), () -> won(h), 1f,
             () -> "wave " + state.wave + ", enemies " + state.enemies + ", core " + (state.rules.defaultTeam.core() == null ? "lost" : (int)state.rules.defaultTeam.core().health + " hp"));
         s.check(tag + ": the mission is complete", () -> Vesper.foundry.victory && Vesper.foundry.current() == null, () -> "");
+        if(!campaign) s.check(tag + ": a custom game's victory leaves the campaign alone", () -> !vesper.campaign.Chapter.complete()
+            && !vesper.campaign.Chapter.archiveRead() && !vesper.content.VSectors.buriedFoundry.sector.hasSave(), () -> "");
         s.run(() -> {
             h.line("info: " + tag + " won after " + minutes() + " of game time (archive read at " + Strings.fixed(archiveRead / 3600f, 1) + " min); mean activity "
                 + Strings.fixed(levelSum / Math.max(ticks, 1f), 1) + " (peak " + (int)maxLevel + "), pulses " + a.pulses + ", patrols " + a.patrols + ", awakened " + a.awakened

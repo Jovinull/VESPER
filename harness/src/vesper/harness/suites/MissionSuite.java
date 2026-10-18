@@ -24,10 +24,13 @@ import static vesper.content.VItems.*;
  * First Awakening played start to finish on the bundled map by the scripted {@link Bot}, without cheats: a
  * foothold economy, two forges and an assembler, six kinetic turrets fed straight from drills, the reactor
  * restored by carrying alloy and circuits, ignition once the waves hold, a save/load in the middle of the
- * awakening countdown, and the final waves until the game declares victory.
+ * awakening countdown, and the final waves until the game declares victory. The campaign plays the same game on
+ * the First Awakening sector (loaded by {@link CampaignSuite}): the victory is the native capture, and the save and
+ * load of the sector are tested there instead.
  */
 public class MissionSuite implements VesperHarness.Suite{
     final Bot bot = new Bot();
+    final boolean campaign;
     final ObjectIntMap<String> lost = new ObjectIntMap<>();
     int expectedIncursion, enemiesBeforeIncursion;
     float pendingBefore, levelBefore;
@@ -38,6 +41,19 @@ public class MissionSuite implements VesperHarness.Suite{
     /** Game time since the mission started, in ticks (state.tick follows real time, not the harness speed). */
     static float gameTicks;
     float sampleTimer;
+
+    public MissionSuite(){
+        this(false);
+    }
+
+    public MissionSuite(boolean campaign){
+        this.campaign = campaign;
+    }
+
+    /** The game declared First Awakening won: a game over in a custom game, the sector's capture in the campaign. */
+    boolean won(VesperHarness h){
+        return campaign ? state.rules.sector != null && state.rules.sector.isCaptured() && Vesper.mission.victory : h.lastWinner == state.rules.defaultTeam;
+    }
 
     @Override
     public void define(VesperHarness h, Script s){
@@ -62,7 +78,7 @@ public class MissionSuite implements VesperHarness.Suite{
             lost.clear();
             gameTicks = 0f;
             maxActivity = 0f;
-            Worlds.play(Worlds.bundled(ContentSuite.basinName), Gamemode.survival);
+            if(!campaign) Worlds.play(Worlds.bundled(ContentSuite.basinName), Gamemode.survival);
             bot.active = true;
         });
         s.wait(0.5f);
@@ -236,6 +252,46 @@ public class MissionSuite implements VesperHarness.Suite{
         h.shot("mission-04-awakening-warning", 26, 84, 2.5f, true);
 
         // --- save and load in the middle of the countdown: nothing may be lost or fire twice
+        if(!campaign) saveLoad(h, s);
+        else s.run(() -> expectedIncursion = Vesper.activity.pendingSentinels + Vesper.activity.pendingCrawlers);
+        s.run(() -> enemiesBeforeIncursion = state.enemies);
+        s.until("persistence: the awakening response arrives exactly once", () -> Vesper.activity.pending < 0f, 60f, null);
+        s.wait(0.2f);
+        s.check("mission: awakening response size", () -> state.enemies - enemiesBeforeIncursion == expectedIncursion,
+            () -> "spawned " + (state.enemies - enemiesBeforeIncursion) + ", expected " + expectedIncursion);
+        h.shot("mission-05-ancient-machines-emerge", 26, 80, 3f, true);
+
+        // --- the end
+        //if the last enemies take long, report where they are (stuck units are a bug, not a slow defense)
+        s.run(() -> stragglerTimer = 0f);
+        s.step(d -> {
+            if(won(h)) return true;
+            if(state.wave >= FirstAwakening.attackWaves + 1 && state.enemies > 0 && (stragglerTimer += d) >= 120f * 60f){
+                stragglerTimer = 0f;
+                reportEnemies(h);
+            }
+            return state.wave >= FirstAwakening.attackWaves + 1 && state.enemies == 0 || won(h) || (stuckChecks += d) > 300f * 60f;
+        });
+        s.until(campaign ? "mission: VICTORY - the game captures the First Awakening sector" : "mission: VICTORY - the game declares First Awakening won",
+            () -> won(h), 900f, () -> "wave " + state.wave + ", enemies " + state.enemies + ", core " + (team.core() == null ? "lost" : (int)team.core().health + " hp"));
+        s.run(() -> h.line("info: won after " + minutes() + " of game time; buildings lost " + lost
+            + "; peak activity " + (int)maxActivity + "; core " + coreSummary()));
+        s.check("mission: final objective marked complete", () -> Vesper.mission.victory && Vesper.mission.current() == null, () -> "");
+        if(!campaign) s.check("mission: a custom game's victory leaves the campaign alone", () -> !vesper.campaign.Chapter.secured(vesper.content.VSectors.firstAwakening)
+            && vesper.content.VSectors.resonanceFault.locked() && !vesper.content.VSectors.firstAwakening.sector.hasSave(), () -> "");
+        //the mission's own announcement first, then the native game over dialog (it opens 3 s after the win)
+        h.shot("mission-06-victory-announcement", 30, 30, 2f, true);
+        if(!campaign){
+            s.wait(4f);
+            h.shot("mission-07-game-over", 30, 30, 2f, true);
+        }
+        s.run(() -> {
+            bot.active = false;
+            if(!headless && ui.restart.isShown()) ui.restart.hide();
+        });
+    }
+
+    void saveLoad(VesperHarness h, Script s){
         s.run(() -> {
             expectedIncursion = Vesper.activity.pendingSentinels + Vesper.activity.pendingCrawlers;
             pendingBefore = Vesper.activity.pending;
@@ -256,37 +312,6 @@ public class MissionSuite implements VesperHarness.Suite{
             () -> "before " + Strings.fixed(pendingBefore / 60f, 1) + " s, after " + Strings.fixed(Vesper.activity.pending / 60f, 1) + " s");
         s.check("persistence: activity level restored", () -> Math.abs(Vesper.activity.level - levelBefore) <= 3f,
             () -> "before " + Strings.fixed(levelBefore, 1) + ", after " + Strings.fixed(Vesper.activity.level, 1));
-        s.run(() -> enemiesBeforeIncursion = state.enemies);
-        s.until("persistence: the awakening response arrives exactly once", () -> Vesper.activity.pending < 0f, 60f, null);
-        s.wait(0.2f);
-        s.check("mission: awakening response size", () -> state.enemies - enemiesBeforeIncursion == expectedIncursion,
-            () -> "spawned " + (state.enemies - enemiesBeforeIncursion) + ", expected " + expectedIncursion);
-        h.shot("mission-05-ancient-machines-emerge", 26, 80, 3f, true);
-
-        // --- the end
-        //if the last enemies take long, report where they are (stuck units are a bug, not a slow defense)
-        s.run(() -> stragglerTimer = 0f);
-        s.step(d -> {
-            if(h.lastWinner != null) return true;
-            if(state.wave >= FirstAwakening.attackWaves + 1 && state.enemies > 0 && (stragglerTimer += d) >= 120f * 60f){
-                stragglerTimer = 0f;
-                reportEnemies(h);
-            }
-            return state.wave >= FirstAwakening.attackWaves + 1 && state.enemies == 0 || h.lastWinner != null || (stuckChecks += d) > 300f * 60f;
-        });
-        s.until("mission: VICTORY - the game declares First Awakening won", () -> h.lastWinner == state.rules.defaultTeam, 900f,
-            () -> "wave " + state.wave + ", enemies " + state.enemies + ", core " + (team.core() == null ? "lost" : (int)team.core().health + " hp"));
-        s.run(() -> h.line("info: won after " + minutes() + " of game time; buildings lost " + lost
-            + "; peak activity " + (int)maxActivity));
-        s.check("mission: final objective marked complete", () -> Vesper.mission.victory && Vesper.mission.current() == null, () -> "");
-        //the mission's own announcement first, then the native game over dialog (it opens 3 s after the win)
-        h.shot("mission-06-victory-announcement", 30, 30, 2f, true);
-        s.wait(4f);
-        h.shot("mission-07-game-over", 30, 30, 2f, true);
-        s.run(() -> {
-            bot.active = false;
-            if(!headless && ui.restart.isShown()) ui.restart.hide();
-        });
     }
 
     float stragglerTimer, stuckChecks;

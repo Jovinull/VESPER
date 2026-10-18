@@ -44,10 +44,23 @@ public class FaultSuite implements VesperHarness.Suite{
     float ticks, sampleTimer, levelSum, resonanceSum, maxLevel, productionStart, crystalAtProduction;
     int samples, patrolsSeen;
 
+    /** Played on the Resonance Fault sector (loaded by {@link CampaignSuite}); the victory is the native capture. */
+    final boolean campaign;
+
     public FaultSuite(boolean loud, boolean spread, String tag){
+        this(loud, spread, tag, false);
+    }
+
+    public FaultSuite(boolean loud, boolean spread, String tag, boolean campaign){
         this.loud = loud;
         this.spread = spread;
         this.tag = tag;
+        this.campaign = campaign;
+    }
+
+    /** The game declared Resonance Fault won: a game over in a custom game, the sector's capture in the campaign. */
+    boolean won(VesperHarness h){
+        return campaign ? state.rules.sector != null && state.rules.sector.isCaptured() && Vesper.fault.victory : h.lastWinner == state.rules.defaultTeam;
     }
 
     @Override
@@ -77,7 +90,7 @@ public class FaultSuite implements VesperHarness.Suite{
         s.run(() -> {
             lost.clear();
             ticks = levelSum = resonanceSum = maxLevel = sampleTimer = 0f;
-            Worlds.play(Worlds.bundled(ContentSuite.faultName), Gamemode.survival);
+            if(!campaign) Worlds.play(Worlds.bundled(ContentSuite.faultName), Gamemode.survival);
             bot.active = true;
             bot.rebuild = true;
         });
@@ -202,10 +215,12 @@ public class FaultSuite implements VesperHarness.Suite{
         h.shot(tag + "-02-fault", 34, 54, 2.5f, true);
 
         //if it takes long, report where the enemies are
-        s.step(d -> h.lastWinner != null || (ticks - productionStart) > 40f * 60f * 60f);
-        s.until(tag + ": VICTORY - the game declares Resonance Fault won", () -> h.lastWinner == state.rules.defaultTeam, 1f,
+        s.step(d -> won(h) || h.lastWinner != null || (ticks - productionStart) > 40f * 60f * 60f);
+        s.until(tag + (campaign ? ": VICTORY - the game captures the Resonance Fault sector" : ": VICTORY - the game declares Resonance Fault won"), () -> won(h), 1f,
             () -> "stored " + Vesper.fault.stored() + "/" + ResonanceFault.goal + ", core " + (state.rules.defaultTeam.core() == null ? "lost" : (int)state.rules.defaultTeam.core().health + " hp"));
         s.check(tag + ": the mission is complete", () -> Vesper.fault.victory && Vesper.fault.current() == null, () -> "");
+        if(!campaign) s.check(tag + ": a custom game's victory leaves the campaign alone", () -> !vesper.campaign.Chapter.secured(vesper.content.VSectors.resonanceFault)
+            && vesper.content.VSectors.buriedFoundry.locked() && !vesper.content.VSectors.resonanceFault.sector.hasSave(), () -> "");
         s.run(() -> {
             float production = (ticks - productionStart) / 60f;
             h.line("info: " + tag + " won after " + minutes() + " of game time; production phase " + Strings.fixed(production / 60f, 1) + " min at "

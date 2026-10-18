@@ -14,18 +14,20 @@ public class Vesper extends Mod{
     public static PlanetaryActivity activity;
     public static FirstAwakening mission;
     public static ResonanceFault fault;
+    public static BuriedFoundry foundry;
 
     @Override
     public void init(){
         activity = new PlanetaryActivity();
         mission = new FirstAwakening();
         fault = new ResonanceFault();
+        foundry = new BuriedFoundry();
         if(!headless) new BasinHud();
     }
 
     /** The mission of the current map, if it has one. */
     public static @Nullable Scenario scenario(){
-        return mission.active() ? mission : fault.active() ? fault : null;
+        return mission.active() ? mission : fault.active() ? fault : foundry.active() ? foundry : null;
     }
 
     @Override

@@ -252,3 +252,101 @@ def emblem():
               (core & upper - left, (0.7, 1)), (core - left - upper, (1, -0.5))], "teal", 4, 1)
     c.fill(R.rect(cx - 1, cy - 1, 3, 3), "teal", 6)
     return c
+
+
+# --- industrial archaeology (0.4): installations that come back, or come apart, and the rig that finds them out
+
+def ancient_recoverer(alt="a"):
+    """Recuperador antigo 3x3, as found, restored and stripped. The found state is the approved industrial ruin
+    (same generator); restored, the shell closes over a glass-domed rotor fed by an intake and lit conduits; dismantled,
+    only the scarred pad and empty sockets remain."""
+    found = recoverable_ruin(alt)
+    n, cx, cy = 96, 48, 48
+    pad = R.chamfer(2, 2, 92, 92, 10)
+
+    restored = R.Canvas(n, n)
+    restored.plate(pad, "dark", 3, bevel=2, hi=1, lo=2, rim=1)
+    K.wear(restored, pad, "recoverer-pad", 0.05, cell=7)
+    shell = R.chamfer(10, 10, 76, 76, 12)
+    K.raised(restored, shell, "dark", 4, bevel=2, shadow=3)
+    K.panels(restored, R.shrink(shell, 3), R.line(10, 48, 86, 48) | R.line(48, 10, 48, 86), "dark", 4)
+    # intake hopper (top-left) and output port (bottom-right), the conduits between them lit again
+    hopper = R.chamfer(14, 14, 22, 22, 4)
+    K.raised(restored, hopper, "steel", 4, bevel=2, shadow=2)
+    restored.cavity(R.shrink(hopper, 5), "dark", 1, bevel=1, cast=2)
+    port = R.chamfer(60, 60, 22, 22, 4)
+    K.raised(restored, port, "steel", 4, bevel=2, shadow=2)
+    restored.fill(R.rect(66, 66, 10, 10), "teal", 3)
+    for path in ([(36, 25), (44, 25), (44, 36)], [(60, 71), (52, 71), (52, 60)], [(25, 36), (25, 70), (36, 70)]):
+        K.trace(restored, path, node=True, groove=True)
+    # the rotor chamber: a dome window, the rotor itself is the -rotator layer
+    restored.cavity(R.circle(cx, cy, 15), "dark", 1, bevel=1, cast=2)
+    restored.fill(R.ring(cx, cy, 15.5, 14.5), "steel", 5)
+    restored.fill(R.ring(cx, cy, 12.5, 11.8), "teal", 2)
+    for k in range(8):
+        a = 2 * math.pi * k / 8
+        K.rivet(restored, int(cx + 18 * math.cos(a)), int(cy + 18 * math.sin(a)), ramp="steel", base=5)
+    K.lamp(restored, 80, 18, "teal", size=1)
+    rotor = R.Canvas(n, n)
+    K.plate(rotor, K.gear(cx, cy, 11, 8, 8, 0.5), "steel", 4, bevel=1)
+    rotor.fill(R.circle(cx, cy, 4), "teal", 4)
+    rotor.fill(R.circle(cx, cy, 1.5), "teal", 6)
+    rglow = glow_layer(n, R.circle(cx, cy, 3) | R.rect(66, 66, 10, 10) | R.ring(cx, cy, 12.5, 11.8), "teal", 5, falloff=2,
+                       alpha=(90, 40), core_alpha=130)
+
+    husk = R.Canvas(n, n)
+    husk.plate(pad, "dark", 2, bevel=2, hi=1, lo=2, rim=1)
+    K.wear(husk, pad, "husk-pad", 0.22, cell=6)
+    # empty sockets where the shell was bolted, and the torn-out rotor bed
+    for (x, y) in ((14, 14), (60, 14), (14, 60), (60, 60)):
+        husk.cavity(R.chamfer(x, y, 22, 22, 3), "dark", 1, bevel=1, cast=1)
+    husk.cavity(R.circle(cx, cy, 13), "dark", 0, bevel=1, cast=2)
+    husk.fill(R.ring(cx, cy, 13.5, 12.5), "rust", 2)
+    for j in range(9):
+        rnd = R.rng("husk-debris", j)
+        x, y = 6 + rnd.randint(0, 80), 6 + rnd.randint(0, 80)
+        chunk = R.chamfer(x, y, rnd.randint(3, 6), rnd.randint(2, 5), 1) & R.shrink(pad, 2)
+        K.raised(husk, chunk, "rust" if j % 3 == 0 else "dark", 3, bevel=1)
+    K.cracks(husk, "husk-c1", (30, 80), 18)
+    K.cracks(husk, "husk-c2", (78, 40), 14)
+    return {"": found[""], "-glow": found["-glow"], "-restored": restored, "-restored-glow": rglow, "-rotator": rotor, "-dismantled": husk}
+
+
+def archive_terminal(alt="a"):
+    """Terminal de arquivo 2x2: the approved data terminal design (same generator), now an installation to survey."""
+    return data_terminal(alt)
+
+
+def survey_rig(alt="a"):
+    """Sonda de investigação 2x2: a frontier tripod rig: hazard-marked base with circuit hopper and cable spool, a
+    sensor dish on a slewing ring (the -dish layer turns) and the scan lens (-glow)."""
+    n, cx, cy = 64, 32, 32
+    base = R.Canvas(n, n)
+    slab = R.chamfer(3, 3, 58, 58, 8)
+    base.plate(slab, "steel", 3, bevel=2, hi=1, lo=2, rim=1)
+    K.wear(base, slab, "rig", 0.08)
+    # three outrigger feet
+    for k in range(3):
+        a = math.radians(210 + 120 * k)
+        leg = R.thick(cx, cy, cx + 26 * math.cos(a), cy - 26 * math.sin(a), 5)
+        K.raised(base, leg & slab, "dark", 4, bevel=1)
+        K.rivet(base, int(cx + 23 * math.cos(a)), int(cy - 23 * math.sin(a)), ramp="steel", base=5)
+    K.stripes(base, R.rect(8, 54, 48, 3), ("amber", 4), ("dark", 1), period=6, width=3)
+    hopper = R.chamfer(6, 6, 14, 14, 3)
+    K.raised(base, hopper, "dark", 4, bevel=1, shadow=1)
+    base.fill(R.rect(9, 9, 8, 8), "teal", 2)
+    spool = R.circle(51, 13, 6)
+    K.raised(base, spool, "rust", 3, bevel=1, shadow=1)
+    base.fill(R.ring(51, 13, 3.5, 2.5), "dark", 2)
+    ring = R.circle(cx, cy, 13)
+    K.raised(base, ring, "dark", 4, bevel=2, shadow=2)
+    base.fill(R.ring(cx, cy, 11.5, 10.5), "steel", 5)
+    K.lamp(base, 12, 46, "amber", size=1)
+    dish = R.Canvas(n, n)
+    bowl = R.circle(cx, cy - 3, 9) - R.circle(cx, cy - 7, 7)
+    K.plate(dish, R.circle(cx, cy, 6), "steel", 4, bevel=1)
+    K.plate(dish, bowl, "steel", 5, bevel=1)
+    dish.fill(R.thick(cx, cy, cx, cy - 14, 2), "dark", 3)
+    dish.fill(R.circle(cx, cy - 14, 2), "teal", 4)
+    lens = glow_layer(n, R.circle(cx, cy - 14, 1.5) | R.rect(9, 9, 8, 8), "teal", 5, falloff=2, alpha=(90, 40), core_alpha=140)
+    return {"": base, "-dish": dish, "-glow": lens}

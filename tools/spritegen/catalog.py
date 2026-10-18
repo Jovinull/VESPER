@@ -126,6 +126,11 @@ add("derelict-reactor", "special", "blocks/ruins", "block", special.derelict_rea
 add("stabilizer-pylon", "special", "blocks/ruins", "block", special.stabilizer_pylon, 2, "Stabilizer Pylon", "Torre de Estabilização")
 add("data-terminal", "special", "blocks/ruins", "block", special.data_terminal, 2, "Data Terminal", "Terminal de Dados")
 add("recoverable-ruin", "special", "blocks/ruins", "block", special.recoverable_ruin, 3, "Industrial Ruin", "Ruína Industrial Recuperável")
+add("ancient-recoverer", "special", "blocks/ruins", "block", special.ancient_recoverer, 3, "Ancient Recoverer", "Recuperador Antigo",
+    note="0.4: found state = the approved industrial ruin; -restored, -rotator, -restored-glow and -dismantled are new.")
+add("archive-terminal", "special", "blocks/ruins", "block", special.archive_terminal, 2, "Archive Terminal", "Terminal de Arquivo",
+    note="0.4: the approved data terminal design as a surveyable installation.")
+add("survey-rig", "special", "blocks/special", "block", special.survey_rig, 2, "Survey Rig", "Sonda de Investigação")
 
 # --- effects
 add("resonance-glow", "effects", "effects", "effect", effects.resonance_glow, 0, "Resonance Glow", "Iluminação de Ressonância")

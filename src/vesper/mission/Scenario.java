@@ -17,6 +17,16 @@ public interface Scenario{
 
     boolean victory();
 
+    /** Whether the final waves are held right now, waiting for the mission's trigger (the HUD explains it with {@code <key>.hold}). */
+    default boolean holding(){
+        return false;
+    }
+
+    /** Whether the final waves have been released (the HUD announces it with {@code <key>.final}). */
+    default boolean released(){
+        return false;
+    }
+
     default @Nullable Objective current(){
         return completed() < objectives().size ? objectives().get(completed()) : null;
     }

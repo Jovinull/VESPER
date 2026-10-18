@@ -148,8 +148,9 @@ public class BasinHud{
             return Core.bundle.format("vesper.activity.hint.ignite", activity.awakeningSentinels() + activity.awakeningCrawlers(),
                 (int)(power * 0.5f), (int)(power * 1.5f));
         }
-        if(mission.holding()){
-            return Core.bundle.get("vesper.mission.hold");
+        var scenario = Vesper.scenario();
+        if(scenario != null && scenario.holding()){
+            return Core.bundle.get(scenario.key() + ".hold");
         }
         if(activity.responses()){
             //maps with the planetary response: what the next step up the scale brings
@@ -174,16 +175,17 @@ public class BasinHud{
             return;
         }
         boolean pending = activity.pending > 0f, pulsePending = activity.pulsePending > 0f, pulseActive = activity.pulseActive > 0f;
-        boolean victory = scenario != null && scenario.victory();
+        boolean victory = scenario != null && scenario.victory(), released = scenario != null && scenario.released(),
+            holding = scenario != null && scenario.holding();
         int completed = scenario == null ? 0 : scenario.completed();
         if(!seen){
             seen = true;
             lastStage = activity.stage;
             lastPending = pending;
             lastCompleted = completed;
-            lastReleased = mission.released;
+            lastReleased = released;
             lastVictory = victory;
-            lastHolding = mission.holding();
+            lastHolding = holding;
             lastPulsePending = pulsePending;
             lastPulseActive = pulseActive;
             return;
@@ -212,11 +214,11 @@ public class BasinHud{
             VFx.pulseImpact.at(activity.pulseX * tilesize, activity.pulseY * tilesize, activity.pulseRadius);
             Sounds.explosionArtilleryShock.at(activity.pulseX * tilesize, activity.pulseY * tilesize, 1.4f, 0.5f);
         }
-        if(mission.released && !lastReleased){
-            announcements.add(Core.bundle.get("vesper.mission.final"));
+        if(released && !lastReleased){
+            announcements.add(Core.bundle.get(scenario.key() + ".final"));
         }
-        if(mission.holding() && !lastHolding){
-            ui.hudfrag.showToast(Icon.warning, Core.bundle.get("vesper.mission.hold.toast"));
+        if(holding && !lastHolding){
+            ui.hudfrag.showToast(Icon.warning, Core.bundle.get(scenario.key() + ".hold.toast"));
         }
         if(victory && !lastVictory){
             //the native game over dialog only says "game over"; say what was won first
@@ -228,9 +230,9 @@ public class BasinHud{
         lastStage = activity.stage;
         lastPending = pending;
         lastCompleted = completed;
-        lastReleased = mission.released;
+        lastReleased = released;
         lastVictory = victory;
-        lastHolding = mission.holding();
+        lastHolding = holding;
         lastPulsePending = pulsePending;
         lastPulseActive = pulseActive;
 

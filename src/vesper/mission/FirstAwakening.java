@@ -100,6 +100,11 @@ public class FirstAwakening implements Scenario{
         return victory;
     }
 
+    @Override
+    public boolean released(){
+        return released;
+    }
+
     /** The scenario's reactor, if the map has one. */
     public @Nullable ReactorBuild reactor(){
         var list = state.rules.defaultTeam.data().getBuildings(VBlocks.derelictReactor);
@@ -107,6 +112,7 @@ public class FirstAwakening implements Scenario{
     }
 
     /** Whether the final waves are being held right now (shown by the HUD; synced through the wave rules). */
+    @Override
     public boolean holding(){
         return active() && !Vesper.activity.awakened && state.wave >= holdWave && !state.rules.waveTimer;
     }

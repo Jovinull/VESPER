@@ -54,6 +54,28 @@ public class VFx{
         Draw.reset();
     }),
 
+    /** An ancient machine coming back: rings fold in and flash out, sparks thrown off. e.rotation is the footprint size. */
+    restorationComplete = new Effect(120f, 400f, e -> {
+        TextureRegion ring = Core.atlas.find("vesper-energy-pulse");
+        float reach = Math.max(e.rotation, 24f);
+        Draw.color(Color.white, VPal.resonance, e.fin());
+        Draw.alpha(e.fout());
+        float r = reach * (e.fin() < 0.3f ? 2.4f - e.fin() / 0.3f * 1.4f : 1f + (e.fin() - 0.3f) * 3f);
+        Draw.rect(ring, e.x, e.y, r * 2f, r * 2f);
+        Lines.stroke(3f * e.fout());
+        Lines.square(e.x, e.y, reach * 0.55f + e.finpow() * reach * 0.6f, 45f);
+        Angles.randLenVectors(e.id, 20, reach * 0.3f + e.finpow() * reach * 1.6f, (x, y) -> Fill.square(e.x + x, e.y + y, 2.5f * e.fout(), 45f));
+        Draw.reset();
+    }),
+
+    /** A restored ancient machine finishing a product: a short resonance flicker. */
+    recovererCraft = new Effect(40f, e -> {
+        Draw.color(VPal.resonanceLight, VPal.resonance, e.fin());
+        Lines.stroke(1.5f * e.fout());
+        Lines.circle(e.x, e.y, 4f + e.fin() * 10f);
+        Draw.reset();
+    }),
+
     /** Pulsing danger ring where ancient machines are about to emerge. */
     gateWarning = new Effect(60f, 120f, e -> {
         Draw.color(VPal.dangerLight, VPal.danger, e.fin());

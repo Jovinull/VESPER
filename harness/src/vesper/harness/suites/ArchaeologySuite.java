@@ -278,6 +278,24 @@ public class ArchaeologySuite implements VesperHarness.Suite{
             h.check("performance: a rig finds its site in under 100 us among " + buildings + " buildings", search >= 0f && search < 0.1f, Strings.fixed(search * 1000f, 1) + " us");
             h.check("performance: the rigs found their sites", rigs.allMatch(r -> ((SurveyRigBuild)r).target() != null || site(r) != null), "");
         });
+
+        // --- a save written by 0.4.0-alpha: The Buried Foundry in the middle of a dismantling (west done, east under way)
+        float[] dismantleBefore = {0f};
+        s.run(() -> {
+            ResponseSuite.loadFixture("buried-foundry-0.4-dismantling.msav");
+            dismantleBefore[0] = FoundrySuite.east() == null ? -1f : FoundrySuite.east().dismantle;
+        });
+        s.wait(1f);
+        s.check("0.4 save: The Buried Foundry loads in the middle of a dismantling, as a custom game", () -> Vesper.foundry.active() && !state.isCampaign()
+            && FoundrySuite.west() != null && FoundrySuite.west().siteState == SiteState.dismantled && FoundrySuite.east().siteState == SiteState.dismantling
+            && FoundrySuite.east().salvageRemaining() > 0, () -> FoundrySuite.east() == null ? "no east machine" : "east " + FoundrySuite.east().siteState
+            + " " + (int)(FoundrySuite.east().dismantle * 100) + "%, objectives " + Vesper.foundry.completed);
+        s.wait(15f);
+        s.check("0.4 save: the dismantling goes on", () -> FoundrySuite.east().dismantle > dismantleBefore[0] || FoundrySuite.east().siteState == SiteState.dismantled,
+            () -> (int)(dismantleBefore[0] * 100) + "% -> " + (int)(FoundrySuite.east().dismantle * 100) + "%");
+        s.run(() -> {
+            if(!headless && ui.restart.isShown()) ui.restart.hide();
+        });
     }
 
     static final int manyWidth = 104, manyHeight = 74;

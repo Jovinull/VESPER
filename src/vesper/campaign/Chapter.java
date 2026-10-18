@@ -172,6 +172,15 @@ public class Chapter{
         Events.fire(new SecuredEvent(sector.preset, initial, ended));
     }
 
+    /** Content the capture of a sector makes available (tech nodes waiting on it). */
+    public static Seq<UnlockableContent> unlockedBy(SectorPreset preset){
+        Seq<UnlockableContent> out = new Seq<>();
+        VTechTree.root.each(node -> {
+            if(node.content != preset && node.objectives.contains(o -> o instanceof SectorComplete s && s.preset == preset)) out.add(node.content);
+        });
+        return out;
+    }
+
     /**
      * Chapter sectors start with their own supplies (each map's loadout, as authored), so a launch here costs
      * nothing. The native launch dialog charges the destination map's loadout and the core of the launch

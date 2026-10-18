@@ -42,6 +42,7 @@ public class Vesper extends Mod{
         VBlocks.load();
         VPlanets.load();
         VSectors.load();
+        VTechTree.load();
 
         //the Core Database lists everything Vesper adds under the planet's own tab
         content.each(c -> {

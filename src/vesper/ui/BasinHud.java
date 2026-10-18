@@ -12,6 +12,7 @@ import mindustry.graphics.*;
 import mindustry.ui.*;
 import mindustry.world.*;
 import vesper.*;
+import vesper.campaign.Chapter.*;
 import vesper.graphics.*;
 import vesper.mission.*;
 import vesper.systems.*;
@@ -36,9 +37,9 @@ public class BasinHud{
     private int lastCompleted;
     private float effectTimer, pulseEffectTimer;
     /** Announcements wait for the previous one, so two state changes in a row never overlap on screen. */
-    private final Seq<String> announcements = new Seq<>();
+    private final Seq<Notice> announcements = new Seq<>();
     private float announceUntil;
-    static final float announceSeconds = 4.5f;
+    static final float announceSeconds = 4.5f, recordSeconds = 9f;
 
     public BasinHud(){
         Events.on(ClientLoadEvent.class, e -> build());
@@ -46,7 +47,31 @@ public class BasinHud{
             seen = false;
             announcements.clear();
         });
+        //a campaign record is read where it is found: its title and its few lines, on screen for longer
+        Events.on(RecordEvent.class, e -> announcements.add(new Notice(Core.bundle.format("vesper.record.announce", e.record.title(), e.record.text()), recordSeconds, true)));
         Events.run(Trigger.update, this::observe);
+    }
+
+    static class Notice{
+        final String text;
+        final float seconds;
+        /** Records survive the victory, which drops the other notices. */
+        final boolean record;
+
+        Notice(String text, float seconds, boolean record){
+            this.text = text;
+            this.seconds = seconds;
+            this.record = record;
+        }
+
+        Notice(String text){
+            this(text, announceSeconds, false);
+        }
+    }
+
+    /** Nothing on screen or waiting: a dialog opened now covers no announcement. */
+    public boolean quiet(){
+        return announcements.isEmpty() && Time.globalTime >= announceUntil;
     }
 
     private boolean visible(){
@@ -195,8 +220,8 @@ public class BasinHud{
             ui.hudfrag.showToast(Icon.warning, Core.bundle.get("vesper.activity.toast." + activity.stage.name()));
         }
         if(pending && !lastPending){
-            announcements.add(Core.bundle.format(activity.pendingAwakening ? "vesper.activity.announce.awakening" + (activity.responses() ? ".gates" : "") : "vesper.activity.announce.patrol",
-                (int)(activity.pending / 60f)));
+            announcements.add(new Notice(Core.bundle.format(activity.pendingAwakening ? "vesper.activity.announce.awakening" + (activity.responses() ? ".gates" : "") : "vesper.activity.announce.patrol",
+                (int)(activity.pending / 60f))));
             Sounds.explosionArtilleryShock.play(0.5f);
         }
         if(!pending && lastPending){
@@ -207,7 +232,7 @@ public class BasinHud{
             ui.hudfrag.showToast(Icon.ok, Core.bundle.format("vesper.objective.done", done.text()));
         }
         if(pulsePending && !lastPulsePending){
-            announcements.add(Core.bundle.format("vesper.pulse.announce", (int)(activity.pulsePending / 60f)));
+            announcements.add(new Notice(Core.bundle.format("vesper.pulse.announce", (int)(activity.pulsePending / 60f))));
         }
         if(pulseActive && !lastPulseActive){
             ui.hudfrag.showToast(Icon.warning, Core.bundle.format("vesper.pulse.toast", Strings.autoFixed(activity.pulseBoost, 1)));
@@ -215,16 +240,16 @@ public class BasinHud{
             Sounds.explosionArtilleryShock.at(activity.pulseX * tilesize, activity.pulseY * tilesize, 1.4f, 0.5f);
         }
         if(released && !lastReleased){
-            announcements.add(Core.bundle.get(scenario.key() + ".final"));
+            announcements.add(new Notice(Core.bundle.get(scenario.key() + ".final")));
         }
         if(holding && !lastHolding){
             ui.hudfrag.showToast(Icon.warning, Core.bundle.get(scenario.key() + ".hold.toast"));
         }
         if(victory && !lastVictory){
-            //the native game over dialog only says "game over"; say what was won first
-            announcements.clear();
+            //the native game over dialog only says "game over"; say what was won first (records found with it follow)
+            announcements.removeAll(n -> !n.record);
             announceUntil = 0f;
-            announcements.add(Core.bundle.get(scenario.key() + ".victory"));
+            announcements.insert(0, new Notice(Core.bundle.get(scenario.key() + ".victory")));
         }
 
         lastStage = activity.stage;
@@ -237,8 +262,9 @@ public class BasinHud{
         lastPulseActive = pulseActive;
 
         if(!announcements.isEmpty() && Time.globalTime >= announceUntil){
-            ui.announce(announcements.remove(0), announceSeconds);
-            announceUntil = Time.globalTime + announceSeconds * 60f;
+            Notice next = announcements.remove(0);
+            ui.announce(next.text, next.seconds);
+            announceUntil = Time.globalTime + next.seconds * 60f;
         }
 
         //the gates flare while something is about to come out of them

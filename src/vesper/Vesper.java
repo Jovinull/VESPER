@@ -17,8 +17,9 @@ public class Vesper extends Mod{
     public static FirstAwakening mission;
     public static ResonanceFault fault;
     public static BuriedFoundry foundry;
-    /** Chapter One of the campaign on the VESPER planet. */
+    /** Chapter One of the campaign on the VESPER planet, and its dialogs (client only). */
     public static Chapter chapter;
+    public static @Nullable ChapterUi chapterUi;
 
     @Override
     public void init(){
@@ -27,7 +28,9 @@ public class Vesper extends Mod{
         fault = new ResonanceFault();
         foundry = new BuriedFoundry();
         chapter = new Chapter();
-        if(!headless) new BasinHud();
+        if(!headless){
+            chapterUi = new ChapterUi(new BasinHud());
+        }
     }
 
     /** The mission of the current map, if it has one. */

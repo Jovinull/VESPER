@@ -83,23 +83,79 @@ public class MapsSuite implements VesperHarness.Suite{
         h.shot("fault-04-reactor", 54, 52, 2f, false);
         h.shot("fault-05-east-fault", 80, 58, 2f, false);
         h.shot("fault-06-east-lane", 98, 42, 2f, false);
+
+        s.run(() -> {
+            logic.reset();
+            world.loadGenerator(BuriedFoundryMap.width, BuriedFoundryMap.height, BuriedFoundryMap::generate);
+            state.rules = BuriedFoundryMap.rules();
+            BuriedFoundryMap.addMarkers();
+            logic.play();
+        });
+        s.wait(0.3f);
+        s.run(() -> {
+            save(h, "buried-foundry", BuriedFoundryMap.tags());
+            dump(h.out.child("maps").child("buried-foundry-tiles.txt"));
+            checkFoundry(h);
+            noAncientDeconstruction(h, "foundry map");
+        });
+        s.run(() -> state.rules.waveTimer = false);
+        h.shot("foundry-01-foothold", 24, 20, 2f, false);
+        h.shot("foundry-02-trench", 36, 34, 2f, false);
+        h.shot("foundry-03-hall", 56, 52, 1.6f, false);
+        h.shot("foundry-04-west-alcove", 33, 51, 3f, false);
+        h.shot("foundry-05-furnace", 55, 52, 3f, false);
+        h.shot("foundry-06-archive", 56, 74, 3f, false);
+        h.shot("foundry-07-east-lane", 92, 40, 2f, false);
     }
 
     /**
      * What the builders left is not the player's to take apart: deconstructing it would refund half of a cost nobody
-     * paid, and the reactor carries a mission. Checked for the player's team on every block of
+     * paid, and the reactor and the archaeology sites carry a mission. Checked for the player's team on every block of
      * an ancient kind, whoever owns it.
      */
     static void noAncientDeconstruction(VesperHarness h, String map){
         Team player = state.rules.defaultTeam;
         Seq<String> breakable = new Seq<>();
         for(Building b : Groups.build){
-            if((b.block instanceof vesper.world.AncientStructure || b.block instanceof vesper.world.DerelictReactor
+            if((b.block instanceof vesper.world.AncientStructure || b.block instanceof vesper.world.AncientSite || b.block instanceof vesper.world.DerelictReactor
                 || (b.block instanceof vesper.world.Stabilizer && b.team == Team.derelict)) && Build.validBreak(player, b.tileX(), b.tileY())){
                 breakable.add(b.block.name.replace("vesper-", "") + "@" + b.tileX() + "," + b.tileY() + "(" + b.team.name + ")");
             }
         }
         h.check(map + ": no ancient structure can be deconstructed by the player", breakable.isEmpty(), breakable.size + ": " + breakable);
+    }
+
+    static void checkFoundry(VesperHarness h){
+        Team player = BuriedFoundryMap.player;
+        h.check("foundry map: every decoration fits the terrain", BuriedFoundryMap.skipped.isEmpty(), "skipped: " + BuriedFoundryMap.skipped);
+        h.check("foundry map: one player core", player.data().cores.size == 1, "cores " + player.data().cores.size);
+        h.check("foundry map: one ground spawn", spawner.countSpawns() == 1, "spawns " + spawner.countSpawns());
+        h.check("foundry map: two buried recoverers and the archive, the player's and unexplored",
+            player.data().getBuildings(VBlocks.ancientRecoverer).size == 2 && player.data().getBuildings(VBlocks.archiveTerminal).size == 1
+            && player.data().buildings.allMatch(b -> !(b instanceof vesper.world.AncientSite.SiteBuild site) || site.siteState == vesper.world.AncientSite.SiteState.unexplored), "");
+        h.check("foundry map: only the core and the installations are the player's", player.data().buildings.size == 4, player.data().buildings.size + " player buildings");
+        Tile core = player.core().tile;
+        Tile spawn = spawner.getSpawns().first();
+        h.check("foundry map: ground path landing zone -> core", reachable(spawn, core), "from " + spawn.x + "," + spawn.y);
+        h.check("foundry map: two gates", BuriedFoundryMap.gateTiles.size == 2, "gates " + BuriedFoundryMap.gateTiles.size);
+        for(int[] g : BuriedFoundryMap.gateTiles){
+            Tile gate = world.tile(g[0], g[1]);
+            h.check("foundry map: gate " + g[0] + "," + g[1] + " open and connected to the core", gate != null && !gate.solid() && reachable(gate, core), "");
+        }
+        //the waves must not cross the hall: with the trench closed, the landing zone cannot reach it
+        Tile hall = world.tile(BuriedFoundryMap.furnaceX - 6, BuriedFoundryMap.furnaceY + 2);
+        h.check("foundry map: the hall is off the wave path (only the trench leads there)", hall != null && !hall.solid() && reachable(hall, core)
+            && !reachable(spawn, hall, t -> t.x >= 27 && t.x <= 45 && t.y >= 27 && t.y <= 44), "");
+        for(Block ore : new Block[]{VBlocks.oreFerroprism, VBlocks.oreVitreousCarbon, VBlocks.oreConductiveScrap}){
+            int count = 0;
+            for(Tile t : world.tiles){
+                if(t.overlay() == ore && t.block() == Blocks.air && t.within(core, 22 * tilesize)) count++;
+            }
+            h.check("foundry map: starting " + ore.name + " near the core", count >= 24, count + " tiles");
+        }
+        int crystal = 0;
+        for(Tile t : world.tiles) if(t.overlay() == VBlocks.oreResonanceCrystal && t.block() == Blocks.air) crystal++;
+        h.check("foundry map: resonance crystal to restore and feed the machines", crystal >= 30, crystal + " tiles");
     }
 
     static void checkFault(VesperHarness h){

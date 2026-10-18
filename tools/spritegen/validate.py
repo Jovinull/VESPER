@@ -130,13 +130,20 @@ def check_file(rep, path, e, suffix):
         # Block.createIcons draws every icon layer at the top-left corner, so layers must match the footprint
         if (w, h) != (n, n) and suffix not in ("-laser", "-laser-end") and suffix not in e.free_layers:
             rep.err(rel, "layer is %dx%d; block layers must be %dx%d or icons compose off-centre" % (w, h, n, n))
+    elif e.kind == "icon":
+        # UI emblems (sector icons): the game draws a 5 px outline around them
+        if (w, h) != (64, 64):
+            rep.err(rel, "icon must be 64x64, is %dx%d" % (w, h))
+        margin = min(min(x for x, _ in solid), min(y for _, y in solid), w - 1 - max(x for x, _ in solid), h - 1 - max(y for _, y in solid))
+        if margin < 5:
+            rep.err(rel, "icon needs a 5 px margin for the runtime outline (has %d)" % margin)
     elif e.kind == "unit" and suffix not in catalog.TEAM_SUFFIXES:
         margin = min(min(x for x, _ in solid), min(y for _, y in solid), w - 1 - max(x for x, _ in solid), h - 1 - max(y for _, y in solid))
         if margin < 3:
             rep.err(rel, "unit region needs a 3 px margin for the runtime outline (has %d)" % margin)
 
     # stray pixels: tiny isolated islands in solid sprites usually mean a generator bug
-    if not translucent_ok and e.kind in ("ore", "item", "block", "turret", "unit"):
+    if not translucent_ok and e.kind in ("ore", "item", "block", "turret", "unit", "icon"):
         left = set(solid)
         while left:
             seed = left.pop()

@@ -6,7 +6,7 @@ generator, the design alternatives that were explored and the one that was appro
 """
 from dataclasses import dataclass, field
 
-from families import defense, drills, effects, industry, logistics, materials, special, terrain, units
+from families import campaign, defense, drills, effects, industry, logistics, materials, special, terrain, units
 
 
 @dataclass
@@ -14,7 +14,7 @@ class Entry:
     name: str
     family: str
     folder: str
-    kind: str                 # floor | wall | ore | item | block | turret | unit | effect
+    kind: str                 # floor | wall | ore | item | block | turret | unit | effect | icon
     gen: object               # callable(alt) or callable() returning {suffix: Canvas}
     size: int = 1             # footprint in tiles (blocks and turrets)
     label: str = ""           # English display name
@@ -137,6 +137,13 @@ add("resonance-glow", "effects", "effects", "effect", effects.resonance_glow, 0,
 add("activity-indicator", "effects", "effects", "effect", effects.activity_indicator, 0, "Activity Indicator", "Indicador de Atividade")
 add("machine-emissive", "effects", "effects", "effect", effects.machine_emissive, 0, "Machine Emissive", "Elemento Emissivo")
 add("energy-pulse", "effects", "effects", "effect", effects.energy_pulse, 0, "Energy Pulse", "Pulso Energético")
+
+# --- campaign (0.5): sector emblems for the planet map and the tech tree, and Chapter One's badge
+add("sector-vesper-first-awakening", "campaign", "ui", "icon", campaign.sector_first_awakening, 0, "First Awakening", "Primeiro Despertar")
+add("sector-vesper-resonance-fault", "campaign", "ui", "icon", campaign.sector_resonance_fault, 0, "Resonance Fault", "Falha de Ressonância")
+add("sector-vesper-buried-foundry", "campaign", "ui", "icon", campaign.sector_buried_foundry, 0, "The Buried Foundry", "A Fundição Soterrada")
+add("sector-vesper-deep-signal", "campaign", "ui", "icon", campaign.sector_deep_signal, 0, "Deep Signal", "Sinal Profundo")
+add("chapter-one", "campaign", "ui", "icon", campaign.chapter_one, 0, "Chapter One", "Capítulo Um")
 
 BY_NAME = {e.name: e for e in ENTRIES}
 

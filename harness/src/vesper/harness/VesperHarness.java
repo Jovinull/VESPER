@@ -107,7 +107,7 @@ public class VesperHarness extends Mod{
 
         Seq<String> list = suites.equals("true") || suites.equals("all") ? Seq.with(headless ? headlessSuites : allSuites) : Seq.with(suites.split(","));
         for(String name : list){
-            Suite suite = switch(name.trim()){
+            Suite suite = name.trim().startsWith("campaign-") ? new CampaignSuite(name.trim()) : switch(name.trim()){
                 case "content" -> new ContentSuite();
                 case "tree" -> new TreeSuite();
                 case "maps" -> new MapsSuite();

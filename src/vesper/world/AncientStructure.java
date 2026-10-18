@@ -5,6 +5,7 @@ import arc.graphics.*;
 import arc.graphics.g2d.*;
 import arc.math.*;
 import arc.util.*;
+import mindustry.world.*;
 import mindustry.world.blocks.defense.*;
 import vesper.*;
 import vesper.graphics.*;
@@ -32,6 +33,12 @@ public class AncientStructure extends Wall{
     public void load(){
         super.load();
         glowRegion = Core.atlas.find(name + "-glow");
+    }
+
+    @Override
+    public boolean canBreak(Tile tile){
+        //ruins, not salvage: deconstructing would refund half of a cost nobody paid (breakable = false is not enough for a block that updates)
+        return false;
     }
 
     public class AncientStructureBuild extends WallBuild{

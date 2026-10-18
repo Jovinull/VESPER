@@ -49,6 +49,7 @@ public class MapsSuite implements VesperHarness.Suite{
             save(h, "first-awakening", SilentBasinMap.tags());
             dump(h.out.child("maps").child("first-awakening-tiles.txt"));
             checkBasin(h);
+            noAncientDeconstruction(h, "basin");
         });
         //composition overview: four quadrants and the key places
         s.run(() -> state.rules.waveTimer = false);
@@ -73,6 +74,7 @@ public class MapsSuite implements VesperHarness.Suite{
             save(h, "resonance-fault", ResonanceFaultMap.tags());
             dump(h.out.child("maps").child("resonance-fault-tiles.txt"));
             checkFault(h);
+            noAncientDeconstruction(h, "fault");
         });
         s.run(() -> state.rules.waveTimer = false);
         h.shot("fault-01-foothold", 26, 22, 2f, false);
@@ -81,6 +83,23 @@ public class MapsSuite implements VesperHarness.Suite{
         h.shot("fault-04-reactor", 54, 52, 2f, false);
         h.shot("fault-05-east-fault", 80, 58, 2f, false);
         h.shot("fault-06-east-lane", 98, 42, 2f, false);
+    }
+
+    /**
+     * What the builders left is not the player's to take apart: deconstructing it would refund half of a cost nobody
+     * paid, and the reactor carries a mission. Checked for the player's team on every block of
+     * an ancient kind, whoever owns it.
+     */
+    static void noAncientDeconstruction(VesperHarness h, String map){
+        Team player = state.rules.defaultTeam;
+        Seq<String> breakable = new Seq<>();
+        for(Building b : Groups.build){
+            if((b.block instanceof vesper.world.AncientStructure || b.block instanceof vesper.world.DerelictReactor
+                || (b.block instanceof vesper.world.Stabilizer && b.team == Team.derelict)) && Build.validBreak(player, b.tileX(), b.tileY())){
+                breakable.add(b.block.name.replace("vesper-", "") + "@" + b.tileX() + "," + b.tileY() + "(" + b.team.name + ")");
+            }
+        }
+        h.check(map + ": no ancient structure can be deconstructed by the player", breakable.isEmpty(), breakable.size + ": " + breakable);
     }
 
     static void checkFault(VesperHarness h){

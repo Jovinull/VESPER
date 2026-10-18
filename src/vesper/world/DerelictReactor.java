@@ -14,6 +14,7 @@ import mindustry.gen.*;
 import mindustry.graphics.*;
 import mindustry.type.*;
 import mindustry.ui.*;
+import mindustry.world.*;
 import mindustry.world.blocks.power.*;
 import mindustry.world.meta.*;
 import vesper.*;
@@ -66,6 +67,12 @@ public class DerelictReactor extends PowerGenerator{
         super.load();
         glowRegion = Core.atlas.find(name + "-glow");
         activeRegion = Core.atlas.find(name + "-active");
+    }
+
+    @Override
+    public boolean canBreak(Tile tile){
+        //the mission's reactor: deconstructing it would refund what it never cost and end the mission
+        return false;
     }
 
     @Override

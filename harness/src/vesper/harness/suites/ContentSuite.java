@@ -18,7 +18,7 @@ import static mindustry.Vars.*;
 /** Every Vesper content has its icons and regions, the bundled maps are listed, and both bundles have the same keys and every text the missions use. */
 public class ContentSuite implements VesperHarness.Suite{
     public static final String galleryName = "Vesper Gallery", basinName = "First Awakening - The Silent Basin", faultName = "Resonance Fault - The Silent Basin",
-        foundryName = "The Buried Foundry - The Silent Basin";
+        foundryName = "The Buried Foundry - The Silent Basin", worksName = "Resonance Works";
 
     @Override
     public void define(VesperHarness h, Script s){
@@ -47,7 +47,7 @@ public class ContentSuite implements VesperHarness.Suite{
                 && wall.large.found(), "2 variants + large");
             }
 
-            for(String name : new String[]{galleryName, basinName, faultName, foundryName}){
+            for(String name : new String[]{galleryName, basinName, faultName, foundryName, worksName}){
                 var map = maps.all().find(m -> m.mod != null && m.mod.name.equals("vesper") && m.name().equals(name));
                 h.check("bundled map listed: " + name, map != null, map == null ? "not found" : map.width + "x" + map.height);
             }
@@ -60,7 +60,7 @@ public class ContentSuite implements VesperHarness.Suite{
                 en.size + " keys; missing in pt_BR: " + onlyEn + "; missing in en: " + onlyPt);
             //texts looked up by key at run time: a missing one would show as ???key??? in game
             Seq<String> used = new Seq<>();
-            for(var scenario : new vesper.mission.Scenario[]{vesper.Vesper.mission, vesper.Vesper.fault, vesper.Vesper.foundry}){
+            for(var scenario : new vesper.mission.Scenario[]{vesper.Vesper.mission, vesper.Vesper.fault, vesper.Vesper.foundry, vesper.Vesper.works}){
                 used.addAll(scenario.key() + ".title", scenario.key() + ".victory");
                 for(var objective : scenario.objectives()) used.add("vesper.objective." + objective.key);
             }
@@ -75,6 +75,10 @@ public class ContentSuite implements VesperHarness.Suite{
                 "vesper.site.dismantling", "vesper.site.dismantled", "vesper.site.bar.investigation", "vesper.site.bar.restoration", "vesper.site.bar.dismantle",
                 "vesper.site.ancient-recoverer.purpose", "vesper.site.archive-terminal.purpose", "vesper.rig.idle", "vesper.rig.bar");
             for(var siteState : vesper.world.AncientSite.SiteState.values()) used.add("vesper.site.state." + siteState.name());
+            //the resonance industry: the dynamo's and the field's stats and bars, every field state, the relay, the Works scenario
+            used.addAll("stat.vesper-core-energy", "stat.vesper-containment", "vesper.stat.core-energy", "vesper.stat.containment", "vesper.dynamo.load",
+                "vesper.relay.bar", "vesper.marker.relay", "vesper.works.complete", "vesper.works.progress");
+            for(var field : new String[]{"off", "ready", "absorbing", "overloaded", "unpowered", "starved", "standby"}) used.add("vesper.field.state." + field);
             Seq<String> missing = used.select(k -> !en.contains(k));
             h.check("every text the missions and the planetary response use exists", missing.isEmpty(), used.size + " keys, missing: " + missing);
         });

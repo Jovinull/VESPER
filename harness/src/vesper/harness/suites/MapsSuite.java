@@ -106,6 +106,38 @@ public class MapsSuite implements VesperHarness.Suite{
         h.shot("foundry-05-furnace", 55, 52, 3f, false);
         h.shot("foundry-06-archive", 56, 74, 3f, false);
         h.shot("foundry-07-east-lane", 92, 40, 2f, false);
+
+        s.run(() -> {
+            logic.reset();
+            world.loadGenerator(ResonanceWorksMap.width, ResonanceWorksMap.height, ResonanceWorksMap::generate);
+            state.rules = ResonanceWorksMap.rules();
+            ResonanceWorksMap.addMarkers();
+            logic.play();
+        });
+        s.wait(0.3f);
+        s.run(() -> {
+            save(h, "resonance-works", ResonanceWorksMap.tags());
+            dump(h.out.child("maps").child("resonance-works-tiles.txt"));
+            checkWorks(h);
+            noAncientDeconstruction(h, "works map");
+        });
+        s.run(() -> state.rules.waveTimer = false);
+        h.shot("works-01-foothold", 18, 18, 2f, false);
+        h.shot("works-02-floor", 38, 34, 2.5f, false);
+        h.shot("works-03-hall", 44, 51, 3f, false);
+        h.shot("works-04-east-lane", 70, 36, 2f, false);
+    }
+
+    static void checkWorks(VesperHarness h){
+        Team player = ResonanceWorksMap.player;
+        h.check("works map: every decoration and seam fits the terrain", ResonanceWorksMap.skipped.isEmpty(), "skipped: " + ResonanceWorksMap.skipped);
+        h.check("works map: one player core, one ground spawn, one relay", player.data().cores.size == 1 && spawner.countSpawns() == 1
+            && player.data().getBuildings(VBlocks.worksRelay).size == 1, "cores " + player.data().cores.size + ", spawns " + spawner.countSpawns());
+        h.check("works map: the gate is on open ground", ResonanceWorksMap.gateTiles.size == 1, "gates " + ResonanceWorksMap.gateTiles.size);
+        h.check("works map: the relay cannot be deconstructed and enemies ignore it", !Build.validBreak(player, ResonanceWorksMap.relayX + 1, ResonanceWorksMap.relayY + 1)
+            && !VBlocks.worksRelay.targetable, "");
+        h.check("works map: Chapter One's tags are absent (a standalone map)", !state.rules.tags.containsKey(vesper.world.AncientSite.tagEnabled)
+            && state.rules.sector == null, "");
     }
 
     /**

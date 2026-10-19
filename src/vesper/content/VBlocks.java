@@ -56,8 +56,8 @@ public class VBlocks{
     //industrial archaeology
     surveyRig, ancientRecoverer, archiveTerminal,
 
-    //resonance industry: recurring uses for resonance cores
-    resonanceDynamo, containmentField;
+    //resonance industry: recurring uses for resonance cores, and the relay of the Resonance Works map
+    resonanceDynamo, containmentField, worksRelay;
 
     /**
      * Visibility of every buildable Vesper block: everywhere but the campaigns of other planets, where the tech tree
@@ -429,6 +429,13 @@ public class VBlocks{
             health = 900;
             consumePower(1f);
             consumeItem(resonanceCore);
+        }};
+
+        worksRelay = new WorksRelay("works-relay"){{
+            requirements(Category.effect, BuildVisibility.sandboxOnly, with(structuralAlloy, 200));
+            size = 3;
+            health = 6000;
+            consumePower(8f);
         }};
 
         //planetary activity: how much a working building of each kind disturbs the basin

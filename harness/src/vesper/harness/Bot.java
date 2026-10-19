@@ -105,6 +105,11 @@ public class Bot{
         return wanted.isEmpty() && deliveryItem == null;
     }
 
+    /** Plans queued but not standing yet, for the logs. */
+    public String pending(){
+        return wanted.size + " (" + wanted.toString(", ", p -> p.block.name.replace("vesper-", "") + "@" + p.x + "," + p.y) + ")";
+    }
+
     static boolean built(BuildPlan plan){
         Tile t = world.tile(plan.x, plan.y);
         return t != null && t.block() == plan.block && t.build != null && t.build.tile == t && t.team() == state.rules.defaultTeam;

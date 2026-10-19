@@ -59,6 +59,7 @@ public class MissionSuite implements VesperHarness.Suite{
     public void define(VesperHarness h, Script s){
         if(!listening){
             listening = true;
+            combat = new Combat(h);
             Events.on(BlockDestroyEvent.class, e -> {
                 if(bot.active && e.tile.team() == state.rules.defaultTeam) lost.increment(e.tile.block().name);
             });
@@ -225,6 +226,7 @@ public class MissionSuite implements VesperHarness.Suite{
         s.until("mission: waves 1-4 survived and the final waves hold", () -> state.wave >= FirstAwakening.holdWave && state.enemies == 0
             && !state.rules.waveTimer && !state.rules.waveSending, 900f, () -> "wave " + state.wave + ", enemies " + state.enemies + ", t=" + minutes());
         s.check("mission: the held fifth wave is reported to the HUD", () -> Vesper.mission.holding(), () -> "holding=" + Vesper.mission.holding());
+        s.run(() -> combat.start("from the held fifth wave: " + combat.snapshot() + "; pending plans " + bot.pending()));
         h.shot("mission-03a-hold-explained", 30, 30, 2f, true);
         //the ignite button, as the player sees it when tapping the primed reactor
         if(!headless){
@@ -270,12 +272,17 @@ public class MissionSuite implements VesperHarness.Suite{
                 stragglerTimer = 0f;
                 reportEnemies(h);
             }
-            return state.wave >= FirstAwakening.attackWaves + 1 && state.enemies == 0 || won(h) || (stuckChecks += d) > 300f * 60f;
+            return state.wave >= FirstAwakening.attackWaves + 1 && state.enemies == 0 || won(h) || lostCore(h) || (stuckChecks += d) > 300f * 60f;
         });
-        s.until(campaign ? "mission: VICTORY - the game captures the First Awakening sector" : "mission: VICTORY - the game declares First Awakening won",
-            () -> won(h), 900f, () -> "wave " + state.wave + ", enemies " + state.enemies + ", core " + (team.core() == null ? "lost" : (int)team.core().health + " hp"));
-        s.run(() -> h.line("info: won after " + minutes() + " of game time; buildings lost " + lost
-            + "; peak activity " + (int)maxActivity + "; core " + coreSummary()));
+        //a lost core ends the wait at once: the combat log says how it happened
+        s.waitFor(() -> won(h) || lostCore(h), 900f);
+        s.check(campaign ? "mission: VICTORY - the game captures the First Awakening sector" : "mission: VICTORY - the game declares First Awakening won",
+            () -> won(h), () -> "wave " + state.wave + ", enemies " + state.enemies + ", core " + (team.core() == null ? "lost" : (int)team.core().health + " hp"));
+        s.run(() -> {
+            combat.report(won(h) ? "victory" : "no victory");
+            h.line("info: " + (won(h) ? "won" : "ended") + " after " + minutes() + " of game time; buildings lost " + lost
+                + "; peak activity " + (int)maxActivity + "; core " + coreSummary());
+        });
         s.check("mission: final objective marked complete", () -> Vesper.mission.victory && Vesper.mission.current() == null, () -> "");
         if(!campaign) s.check("mission: a custom game's victory leaves the campaign alone", () -> !vesper.campaign.Chapter.secured(vesper.content.VSectors.firstAwakening)
             && vesper.content.VSectors.resonanceFault.locked() && !vesper.content.VSectors.firstAwakening.sector.hasSave(), () -> "");
@@ -315,6 +322,12 @@ public class MissionSuite implements VesperHarness.Suite{
     }
 
     float stragglerTimer, stuckChecks;
+    @Nullable Combat combat;
+
+    /** The game ended with the core lost (a custom game's game over, or the sector lost in the campaign). */
+    static boolean lostCore(VesperHarness h){
+        return state.gameOver && h.lastWinner != null && h.lastWinner != state.rules.defaultTeam;
+    }
 
     static void reportEnemies(VesperHarness h){
         Groups.unit.each(u -> u.team == state.rules.waveTeam, u -> h.line("straggler: " + u.type.name + " at tile " + u.tileX() + "," + u.tileY()

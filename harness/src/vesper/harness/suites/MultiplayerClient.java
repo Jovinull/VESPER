@@ -28,6 +28,8 @@ public class MultiplayerClient implements VesperHarness.Suite{
     /** The buried machine this client is restoring: "west", "east" or null. */
     @Nullable String restoring;
     float reconnectTimer;
+    /** Cores to carry into the test dynamo. */
+    int carrying;
 
     @Override
     public void define(VesperHarness h, Script s){
@@ -91,6 +93,23 @@ public class MultiplayerClient implements VesperHarness.Suite{
             h.line("mp client " + name + ": carrying the restoration into the " + data.substring(8) + " machine");
             restoring = data.substring(8);
             bot.active = true;
+        }else if(data.equals("carry-cores")){
+            h.line("mp client " + name + ": carrying resonance cores into the dynamo");
+            var d = MultiplayerHost.mpDynamo();
+            if(d != null){
+                carrying = MultiplayerHost.carried;
+                bot.active = true;
+                bot.deliver(d, resonanceCore, item -> carrying - delivered(d));
+            }
+        }else if(data.equals("field-off") || data.equals("field-on")){
+            h.line("mp client " + name + ": switching the field " + (data.endsWith("on") ? "on" : "off"));
+            if(MultiplayerHost.mpField() != null) MultiplayerHost.mpField().configure(data.endsWith("on"));
+        }else if(data.startsWith("rebuild-field:")){
+            //as the rebuild button does: the team's plan for the lost block (sent by the server), with the setting it had
+            String[] p = data.substring(14).split(",");
+            h.line("mp client " + name + ": rebuilding the field from the team's plan at " + p[0] + "," + p[1] + " (" + p[2] + ")");
+            bot.active = true;
+            bot.build(VBlocks.containmentField, Strings.parseInt(p[0]), Strings.parseInt(p[1]), 0, Boolean.parseBoolean(p[2]));
         }else if(data.equals("disconnect")){
             h.line("mp client " + name + ": dropping out");
             netClient.disconnectQuietly();
@@ -126,7 +145,18 @@ public class MultiplayerClient implements VesperHarness.Suite{
             + ";foundry=" + Vesper.foundry.active() + ";west=" + stateOf(site("west")) + ";east=" + stateOf(site("east")) + ";archive=" + stateOf(site("archive"))
             + ";westDelivered=" + delivered(site("west")) + ";eastDelivered=" + delivered(site("east"))
             + ";platform=" + (state.rules.isBanned(VBlocks.ancientPlatform) ? "locked" : "open") + ";foundryReleased=" + Vesper.foundry.released
-            + ";foundryVictory=" + Vesper.foundry.victory + ";foundryObjective=" + (Vesper.foundry.current() == null ? "done" : Vesper.foundry.current().key);
+            + ";foundryVictory=" + Vesper.foundry.victory + ";foundryObjective=" + (Vesper.foundry.current() == null ? "done" : Vesper.foundry.current().key)
+            + ";works=" + Vesper.works.active() + ";relayDelivered=" + (Vesper.works.active() ? String.valueOf((long)Vesper.works.delivered()) : "-")
+            + ";dynamoBurned=" + (MultiplayerHost.mpDynamo() == null ? "-" : MultiplayerHost.mpDynamo().coresBurned)
+            + ";fieldOnline=" + (MultiplayerHost.mpField() == null ? "-" : MultiplayerHost.mpField().online)
+            + ";fieldSpent=" + (MultiplayerHost.mpField() == null ? "-" : MultiplayerHost.mpField().coresSpent)
+            + ";fieldOverloaded=" + (MultiplayerHost.mpField() != null && MultiplayerHost.mpField().overloaded())
+            + ";worksVictory=" + Vesper.works.victory + ";worksObjective=" + (Vesper.works.current() == null ? "done" : Vesper.works.current().key);
+    }
+
+    /** Cores this client has put into the dynamo so far: what it holds now plus what it burned. */
+    static int delivered(vesper.world.ResonanceDynamo.ResonanceDynamoBuild d){
+        return d.coresBurned + d.items.get(resonanceCore);
     }
 
     static @Nullable SiteBuild site(String which){

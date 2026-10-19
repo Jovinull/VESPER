@@ -12,6 +12,7 @@ import mindustry.gen.*;
 import mindustry.io.*;
 import mindustry.maps.Map;
 import mindustry.net.*;
+import mindustry.type.*;
 import vesper.*;
 import vesper.harness.*;
 import vesper.harness.maps.*;
@@ -419,6 +420,143 @@ public class MultiplayerHost implements VesperHarness.Suite{
         });
         s.wait(2f);
 
+        // --- 0.6: the resonance industry on Resonance Works (test setup: a dynamo against the relay, a powered field, a router between them)
+        s.run(() -> {
+            works = Worlds.bundled(ContentSuite.worksName);
+            WorldReloader reloader = new WorldReloader();
+            reloader.begin();
+            Rules rules = works.applyRules(Gamemode.survival);
+            world.loadMap(works, rules);
+            state.rules = rules;
+            logic.play();
+            reloader.end();
+            Team team = state.rules.defaultTeam;
+            world.tile(dynamoX + 1, dynamoY + 1).setNet(resonanceDynamo, team, 0);
+            world.tile(fieldX, fieldY).setNet(containmentField, team, 0);
+            world.tile(fieldX - 1, fieldY).setNet(Blocks.powerSource, team, 0);
+            world.tile(routerX, routerY).setNet(cargoRouter, team, 0);
+            Vesper.activity.cooldown = 1e9f;
+            Vesper.activity.pulseCooldown = 1e9f;
+            fed = 0;
+        });
+        s.until("mp: both clients join Resonance Works", () -> Groups.player.count(p -> p.unit() != null && !p.dead()) >= 2, 120f, null);
+        s.wait(2f);
+        ask(h, s, "works");
+        expect(h, s, "mp: clients run Resonance Works: the relay waits, nothing delivered", a -> a.get("map").equals(works.name()) && a.get("works").equals("true")
+            && a.get("relayDelivered").equals("0") && a.get("dynamoBurned").equals("0") && a.get("fieldOnline").equals("true"));
+        //a client carries cores from the core into the dynamo with its unit; the relay starts counting on the server
+        s.run(() -> {
+            state.rules.defaultTeam.core().items.add(resonanceCore, carried);
+            coresBefore = state.rules.defaultTeam.core().items.get(resonanceCore);
+            send(first(), "carry-cores");
+        });
+        s.until("mp: cores carried by a client feed the dynamo and the relay receives power", () -> mpDynamo() != null && mpDynamo().coresBurned > 0
+            && Vesper.works.delivered() > 0, 120f, () -> mpDynamo() == null ? "-" : "store " + mpDynamo().items.get(resonanceCore));
+        s.wait(3f);
+        ask(h, s, "works-fed");
+        expect(h, s, "mp: both clients see the dynamo burning and the relay counting what the server counts", a -> a.get("dynamoBurned").equals(String.valueOf(mpDynamo().coresBurned))
+            && Math.abs(Strings.parseFloat(a.get("relayDelivered"), -1f) - (float)Vesper.works.delivered()) <= 3000f);
+        //the field: switched off by one client, back on by the other; only the server decides
+        s.run(() -> send(first(), "field-off"));
+        s.until("mp: a client switches the field off; the server applies it", () -> mpField() != null && !mpField().online, 15f, null);
+        s.wait(2f);
+        ask(h, s, "field-off");
+        expect(h, s, "mp: both clients see the field off", a -> a.get("fieldOnline").equals("false"));
+        s.run(() -> send(second(), "field-on"));
+        s.until("mp: the other client switches it back on", () -> mpField().online, 15f, null);
+        s.until("mp: all the cores the client carried are in the dynamo, taken from the core once", () -> mpDynamo().coresBurned + mpDynamo().items.get(resonanceCore) >= carried
+            && coresBefore - state.rules.defaultTeam.core().items.get(resonanceCore) == carried, 300f,
+            () -> "dynamo " + (mpDynamo().coresBurned + mpDynamo().items.get(resonanceCore)) + ", taken from the core " + (coresBefore - state.rules.defaultTeam.core().items.get(resonanceCore)));
+        //two machines share one finite stock through a router: 20 cores fed one at a time on the server
+        s.step(d -> {
+            var router = world.build(routerX, routerY);
+            if(router != null && router.items.total() == 0 && fed < 20 && router.acceptItem(router, resonanceCore)){
+                router.handleItem(router, resonanceCore);
+                fed++;
+            }
+            return fed >= 20;
+        });
+        s.wait(5f);
+        s.check("mp: the shared stock is conserved on the server: every core is burned, spent or stored once", () -> sharedCores() == 20 + carried,
+            () -> "accounted " + sharedCores() + " of " + (20 + carried) + ": " + industryState());
+        ask(h, s, "shared");
+        expect(h, s, "mp: both clients see the server's counts", a -> a.get("dynamoBurned").equals(String.valueOf(mpDynamo().coresBurned))
+            && a.get("fieldSpent").equals(String.valueOf(mpField().coresSpent)));
+        //a pulse with the field short of cores: it is overloaded; a client drops out during the overload and comes back
+        s.run(() -> {
+            holdShock = 60f;
+            mpField().items.clear();
+            mpField().upkeep = 0f;
+            Vesper.activity.pulseCooldown = 0f;
+        });
+        s.until("mp: the server announces a pulse at the dynamo", () -> Vesper.activity.pulsePending > 0f, 60f, () -> "level " + (int)Vesper.activity.level);
+        s.until("mp: the pulse lands and overloads the starved field", () -> Vesper.activity.pulseActive > 0f && mpField().overloaded(), 30f, this::industryState);
+        s.run(() -> send(second(), "disconnect"));
+        s.until("mp: a client disconnects during the overload", () -> Groups.player.size() == 1, 30f, null);
+        s.until("mp: it reconnects to the running game", () -> Groups.player.count(p -> p.unit() != null && !p.dead()) >= 2, 120f, null);
+        s.wait(2f);
+        ask(h, s, "overload");
+        expect(h, s, "mp: both clients see the field overloaded by the running pulse", a -> a.get("fieldOverloaded").equals("true") && a.get("pulse").startsWith("active@"));
+        //save and load in the middle of the pulse, with the dynamo's core in progress
+        s.run(() -> {
+            Fi file = h.out.child("mp-works.msav");
+            SaveIO.save(file);
+            savedSnapshot = industryInvariant();
+            deliveredAtSave = Vesper.works.delivered();
+            h.line("mp: industry at the save: " + industryState());
+            WorldReloader reloader = new WorldReloader();
+            reloader.begin();
+            SaveIO.load(file);
+            state.rules.sector = null;
+            state.set(State.playing);
+            reloader.end();
+            h.line("mp: Resonance Works saved and reloaded on the server: " + savedSnapshot);
+        });
+        s.until("mp: both clients are back in Resonance Works", () -> Groups.player.count(p -> p.unit() != null && !p.dead()) >= 2, 120f, null);
+        s.wait(1f);
+        s.check("mp: the resonance industry survives save and load on the server (every core accounted once, nothing paid twice)", () -> industryInvariant().equals(savedSnapshot)
+            && Vesper.works.delivered() >= deliveredAtSave && Vesper.works.delivered() - deliveredAtSave < 5000, () -> "before " + savedSnapshot + ", after " + industryInvariant()
+            + ", delivered " + (long)deliveredAtSave + " -> " + (long)Vesper.works.delivered() + " (" + industryState() + ")");
+        s.waitFor(() -> Vesper.activity.pulseActive < 0f, 30f);
+        //destroyed after a client switched it off: rebuilt by a client from the team's plans, still off
+        s.run(() -> {
+            holdShock = -1f;
+            send(first(), "field-off");
+        });
+        s.until("mp: the field is off before it is lost", () -> !mpField().online, 15f, null);
+        s.run(() -> {
+            state.rules.defaultTeam.core().items.add(ItemStack.list(structuralAlloy, 200, recoveredCircuit, 100, resonanceCore, 20));
+            mpField().kill();
+        });
+        s.wait(1f);
+        s.check("mp: the lost field is in the team's rebuild plans with its setting", () -> {
+            for(var plan : state.rules.defaultTeam.data().plans) if(plan.block == containmentField && Boolean.FALSE.equals(plan.config)) return true;
+            return false;
+        }, () -> state.rules.defaultTeam.data().plans.size + " plans");
+        s.run(() -> {
+            for(var plan : state.rules.defaultTeam.data().plans){
+                if(plan.block == containmentField) send(second(), "rebuild-field:" + plan.x + "," + plan.y + "," + plan.config);
+            }
+        });
+        s.until("mp: a client rebuilds the field", () -> mpField() != null, 120f, null);
+        s.wait(2f);
+        s.check("mp: rebuilt, it keeps its setting on the server", () -> !mpField().online, this::industryState);
+        ask(h, s, "rebuilt");
+        expect(h, s, "mp: both clients see the rebuilt field off", a -> a.get("fieldOnline").equals("false"));
+        //victory with both clients connected: the relay reaches the goal (test setup: the count is advanced)
+        s.run(() -> {
+            if(Vesper.works.relay() != null) Vesper.works.relay().delivered = ResonanceWorks.goal;
+        });
+        s.until("mp: the server declares Resonance Works won", () -> h.lastWinner == state.rules.defaultTeam, 30f, () -> "objectives " + Vesper.works.completed);
+        s.wait(2f);
+        ask(h, s, "works-victory");
+        expect(h, s, "mp: both clients see the Resonance Works victory", a -> a.get("gameover").equals("true") && a.get("won").equals("true")
+            && a.get("worksVictory").equals("true") && a.get("worksObjective").equals("done"));
+        s.run(() -> {
+            for(Player p : Groups.player) Call.clientPacketReliable(p.con, packet, "shot:mp-works-victory");
+        });
+        s.wait(2f);
+
         s.run(() -> {
             for(Player p : Groups.player) Call.clientPacketReliable(p.con, packet, "bye");
         });
@@ -460,6 +598,50 @@ public class MultiplayerHost implements VesperHarness.Suite{
     }
 
     int salvageAtSave;
+
+    /** Resonance Works test setup: the dynamo against the relay (bottom-left), the field, the router feeding both. */
+    public static final int dynamoX = 41, dynamoY = 50, fieldX = 39, fieldY = 53, routerX = 40, routerY = 52;
+    /** Cores a client carried into the dynamo (counted when the shared stock starts). */
+    public static final int carried = 30;
+    Map works;
+    int fed, coresBefore;
+    double deliveredAtSave;
+
+    static vesper.world.ResonanceDynamo.ResonanceDynamoBuild mpDynamo(){
+        return Worlds.at(dynamoX, dynamoY, 3) instanceof vesper.world.ResonanceDynamo.ResonanceDynamoBuild d ? d : null;
+    }
+
+    static vesper.world.ContainmentField.FieldBuild mpField(){
+        return world.build(fieldX, fieldY) instanceof vesper.world.ContainmentField.FieldBuild f ? f : null;
+    }
+
+    /** Every core that went into the dynamo and the field: burned, spent or still held (the router included). */
+    static int sharedCores(){
+        var d = mpDynamo();
+        var f = mpField();
+        var r = world.build(routerX, routerY);
+        return (d == null ? 0 : d.coresBurned + d.items.get(resonanceCore)) + (f == null ? 0 : f.coresSpent + f.items.get(resonanceCore))
+            + (r == null ? 0 : r.items.get(resonanceCore));
+    }
+
+    String industryState(){
+        var d = mpDynamo();
+        var f = mpField();
+        return "dynamo " + (d == null ? "-" : d.coresBurned + " burned " + d.items.get(resonanceCore) + " stored " + Strings.fixed(d.generateTime, 3) + " left")
+            + " | field " + (f == null ? "-" : (f.online ? "on" : "off") + " " + f.coresSpent + " spent " + f.items.get(resonanceCore) + " stored absorbed " + f.absorbedPulse
+            + " overloaded " + f.overloadedPulse) + " | delivered " + (long)Vesper.works.delivered() + " pulses " + Vesper.activity.pulses;
+    }
+
+    /**
+     * What a save and load may not change, whatever runs between: cores in the dynamo (burned + held), in the field
+     * (spent + held), its setting and the pulses it absorbed or was overloaded by, and the pulse count.
+     */
+    static String industryInvariant(){
+        var d = mpDynamo();
+        var f = mpField();
+        return "dynamo " + (d == null ? "-" : d.coresBurned + d.items.get(resonanceCore)) + " | field " + (f == null ? "-" : (f.online ? "on " : "off ")
+            + (f.coresSpent + f.items.get(resonanceCore)) + " absorbed " + f.absorbedPulse + " overloaded " + f.overloadedPulse) + " | pulses " + Vesper.activity.pulses;
+    }
 
     static SiteBuild west(){
         return Worlds.at(BuriedFoundryMap.westX, BuriedFoundryMap.westY, 3) instanceof SiteBuild b ? b : null;

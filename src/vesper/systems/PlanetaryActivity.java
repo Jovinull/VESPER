@@ -330,13 +330,13 @@ public class PlanetaryActivity{
         publish();
     }
 
-    /** The working resonance machine closest to an ancient gate (the fault), lowest position first on ties. */
+    /** The working resonance machine closest to an ancient gate (the fault), lowest position first on ties; an idle dynamo is not working. */
     @Nullable Building pulseTarget(){
         Seq<Tile> gates = gates();
         Building best = null;
         float bestDst = Float.MAX_VALUE;
         for(Building b : state.rules.defaultTeam.data().buildings){
-            if(!resonant.contains(b.block) || b.efficiency <= 0f) continue;
+            if(!resonant.contains(b.block) || working(b) <= 0f) continue;
             float dst = Float.MAX_VALUE;
             for(Tile g : gates) dst = Math.min(dst, b.dst2(g.worldx(), g.worldy()));
             if(dst < bestDst || (dst == bestDst && best != null && b.pos() < best.pos())){

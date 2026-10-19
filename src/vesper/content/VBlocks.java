@@ -54,7 +54,10 @@ public class VBlocks{
     coreFoothold, derelictReactor, stabilizerPylon, dataTerminal, recoverableRuin,
 
     //industrial archaeology
-    surveyRig, ancientRecoverer, archiveTerminal;
+    surveyRig, ancientRecoverer, archiveTerminal,
+
+    //resonance industry: a recurring use for resonance cores
+    resonanceDynamo;
 
     /**
      * Visibility of every buildable Vesper block: everywhere but the campaigns of other planets, where the tech tree
@@ -405,6 +408,21 @@ public class VBlocks{
             unlocks = ancientPlatform;
         }};
 
+        //resonance industry: a generator that burns cores on demand
+        resonanceDynamo = new ResonanceDynamo("resonance-dynamo"){{
+            requirements(Category.power, with(structuralAlloy, 80, recoveredCircuit, 40, resonanceCore, 10));
+            size = 3;
+            health = 1400;
+            powerProduction = 5f;
+            itemDuration = 300f;
+            itemCapacity = 10;
+            generateEffect = Fx.generatespark;
+            effectChance = 0.06f;
+            consumeItem(resonanceCore);
+            drawer = new DrawMulti(new DrawDefault(), new DrawRegion("-ring"){{ rotateSpeed = 1.2f; spinSprite = true; }},
+                new DrawRegion("-top"), new DrawGlowRegion(){{ color = VPal.resonance; alpha = 0.9f; }});
+        }};
+
         //planetary activity: how much a working building of each kind disturbs the basin
         var weights = PlanetaryActivity.weights;
         weights.put(structuralForge, 3f);
@@ -416,11 +434,13 @@ public class VBlocks{
         weights.put(componentAssembler, 5f);
         weights.put(reinforcedDrill, 2f);
         weights.put(crystalExtractor, 4f);
-        PlanetaryActivity.resonant.addAll(crystalExtractor, experimentalResonator, ancientRecoverer);
+        weights.put(resonanceDynamo, 7f);
+        PlanetaryActivity.resonant.addAll(crystalExtractor, experimentalResonator, ancientRecoverer, resonanceDynamo);
 
         for(Block block : new Block[]{transitBelt, cargoRouter, cargoJunction, cargoBridge, industrialConduit, resonanceLink, surveyDrill, reinforcedDrill,
             scrapCollector, crystalExtractor, structuralForge, scrapRecycler, alloyRefinery, mineralCompressor, combustionEngine, powerAccumulator,
-            experimentalResonator, componentAssembler, reinforcedWall, heavyWall, kineticTurret, pulseTurret, ancientPlatform, stabilizerPylon, surveyRig}){
+            experimentalResonator, componentAssembler, reinforcedWall, heavyWall, kineticTurret, pulseTurret, ancientPlatform, stabilizerPylon, surveyRig,
+            resonanceDynamo}){
             if(block.buildVisibility == BuildVisibility.shown) block.buildVisibility = vesperOnly;
         }
     }

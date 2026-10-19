@@ -56,8 +56,8 @@ public class VBlocks{
     //industrial archaeology
     surveyRig, ancientRecoverer, archiveTerminal,
 
-    //resonance industry: a recurring use for resonance cores
-    resonanceDynamo;
+    //resonance industry: recurring uses for resonance cores
+    resonanceDynamo, containmentField;
 
     /**
      * Visibility of every buildable Vesper block: everywhere but the campaigns of other planets, where the tech tree
@@ -408,7 +408,7 @@ public class VBlocks{
             unlocks = ancientPlatform;
         }};
 
-        //resonance industry: a generator that burns cores on demand
+        //resonance industry: a generator that burns cores on demand, and a field that keeps pulses off the industry around it
         resonanceDynamo = new ResonanceDynamo("resonance-dynamo"){{
             requirements(Category.power, with(structuralAlloy, 80, recoveredCircuit, 40, resonanceCore, 10));
             size = 3;
@@ -421,6 +421,14 @@ public class VBlocks{
             consumeItem(resonanceCore);
             drawer = new DrawMulti(new DrawDefault(), new DrawRegion("-ring"){{ rotateSpeed = 1.2f; spinSprite = true; }},
                 new DrawRegion("-top"), new DrawGlowRegion(){{ color = VPal.resonance; alpha = 0.9f; }});
+        }};
+
+        containmentField = new ContainmentField("containment-field"){{
+            requirements(Category.effect, with(structuralAlloy, 60, recoveredCircuit, 30, resonanceCore, 6));
+            size = 2;
+            health = 900;
+            consumePower(1f);
+            consumeItem(resonanceCore);
         }};
 
         //planetary activity: how much a working building of each kind disturbs the basin
@@ -440,7 +448,7 @@ public class VBlocks{
         for(Block block : new Block[]{transitBelt, cargoRouter, cargoJunction, cargoBridge, industrialConduit, resonanceLink, surveyDrill, reinforcedDrill,
             scrapCollector, crystalExtractor, structuralForge, scrapRecycler, alloyRefinery, mineralCompressor, combustionEngine, powerAccumulator,
             experimentalResonator, componentAssembler, reinforcedWall, heavyWall, kineticTurret, pulseTurret, ancientPlatform, stabilizerPylon, surveyRig,
-            resonanceDynamo}){
+            resonanceDynamo, containmentField}){
             if(block.buildVisibility == BuildVisibility.shown) block.buildVisibility = vesperOnly;
         }
     }

@@ -187,6 +187,13 @@ public class MissionSuite implements VesperHarness.Suite{
             bot.line(reinforcedWall, 57, 45, 57, 50, 0);
             bot.line(reinforcedWall, 46, 21, 46, 26, 0);
         }, 300f);
+        //the core's own defense: the final waves' sentinels walk the east road to the core once the east pair falls (0.6
+        //investigation), so a router on the north line feeds two turrets beside it, as a player defends a core
+        phase(h, s, "a router on the north line feeding two turrets beside the core", () -> {
+            bot.build(cargoRouter, 26, 30);
+            bot.build(kineticTurret, 24, 30);
+            bot.build(kineticTurret, 27, 30);
+        }, 240f);
         s.check("mission: objectives advanced to the reactor", () -> Vesper.mission.completed >= 5, () -> "completed " + Vesper.mission.completed
             + "/" + Vesper.mission.objectives.size + ", t=" + minutes());
 

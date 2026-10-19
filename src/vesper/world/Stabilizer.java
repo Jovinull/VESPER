@@ -24,8 +24,8 @@ import static mindustry.Vars.*;
  * the strongest stabilizer takes {@link PlanetaryActivity#stabilizerStrength} points off the activity target and
  * every further one a fixed fraction of the previous (see {@link PlanetaryActivity#stabilization}), so a base can
  * be made quieter but never silent. Tapping it switches it on or off; off, it draws no power. A resonance pulse
- * overloads the stabilizers it reaches. Pylons the builders left in the maps (derelict) stay inert ruins and
- * cannot be dismantled for materials.
+ * overloads the stabilizers it reaches, unless a containment field that absorbed it covers them. Pylons the
+ * builders left in the maps (derelict) stay inert ruins and cannot be dismantled for materials.
  */
 public class Stabilizer extends Block{
     public Color glowColor = VPal.resonance;
@@ -87,7 +87,7 @@ public class Stabilizer extends Block{
         public float warmup;
 
         public boolean overloaded(){
-            return Vesper.activity.inPulse(this);
+            return Vesper.activity.interferes(this);
         }
 
         @Override

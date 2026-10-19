@@ -89,6 +89,7 @@ public class PlanetaryActivity{
     private float sampleTimer;
     private String lastSent = "";
     private final Seq<ActivityStabilizer> stabilizers = new Seq<>();
+    private boolean shieldFound;
 
     public PlanetaryActivity(){
         Events.run(Trigger.update, this::update);
@@ -135,9 +136,50 @@ public class PlanetaryActivity{
         return resonanceMultiplier() * (inPulse(build) ? pulseBoost : 1f);
     }
 
+    /** Whether a resonance pulse is announced or running (what a containment field has to be ready for). */
+    public boolean pulsing(){
+        return responses() && (pulsePending > 0f || pulseActive > 0f);
+    }
+
     /** Whether a pulse is running and reaches this building. */
     public boolean inPulse(Building build){
         return pulseActive > 0f && active() && build.within(pulseX * tilesize, pulseY * tilesize, pulseRadius);
+    }
+
+    /** Farthest a {@link PulseShield} reaches (world units), for the spatial lookups; set by content. */
+    public static float shieldReach = 0f;
+
+    /**
+     * Whether a shield that absorbed the running pulse covers this building: a lookup in the team's building tree
+     * around it, never a scan of the base (and safe inside an indexer query, which shares one result array).
+     */
+    public boolean shielded(Building build){
+        var tree = build.team.data().buildingTree;
+        if(pulseActive <= 0f || shieldReach <= 0f || tree == null) return false;
+        shieldFound = false;
+        tree.intersect(build.x - shieldReach, build.y - shieldReach, shieldReach * 2f, shieldReach * 2f, other -> {
+            if(!shieldFound && other instanceof PulseShield s && s.shielding() && build.within(other, s.shieldRadius())) shieldFound = true;
+        });
+        return shieldFound;
+    }
+
+    /** Interference of the running pulse on this building: in its reach and no shield covering it. */
+    public boolean interferes(Building build){
+        return inPulse(build) && !shielded(build);
+    }
+
+    /**
+     * A shield stopped holding the running pulse back (server): the machines it spared within its reach that no other
+     * shield covers slow down for the time the pulse has left.
+     */
+    public void unshield(Building shield, float radius){
+        if(pulseActive <= 0f || !active() || net.client()) return;
+        indexer.eachBlock(shield, radius, b -> interfered(b) && inPulse(b) && !shielded(b), b -> b.applySlowdown(pulseSlowdown, pulseActive));
+    }
+
+    /** Whether a pulse slows this building down: ordinary production, not the resonance machines that feed on it. */
+    static boolean interfered(Building b){
+        return !resonant.contains(b.block) && (b.block instanceof GenericCrafter || b.block instanceof Drill);
     }
 
     /** Activity as a 0-1 fraction, 0 outside Vesper scenarios. */
@@ -354,10 +396,17 @@ public class PlanetaryActivity{
         //the flare lifts the target; the level climbs towards it at the usual rate (stabilizers can absorb it)
         shock += pulseShock;
         pulseCooldown = Mathf.lerp(pulseCooldownSlow, pulseCooldownFast, Mathf.clamp((level - pulseLevel) / (100f - pulseLevel)));
-        //interference: the ordinary industry next to the resonance machines slows down while the pulse lasts (saved with each building)
         float wx = pulseX * tilesize, wy = pulseY * tilesize;
+        //containment fields within reach absorb it first (each pays for itself; one that cannot is overloaded)
+        if(shieldReach > 0f){
+            for(Building b : state.rules.defaultTeam.data().buildings){
+                if(b instanceof PulseShield shield && b.within(wx, wy, pulseRadius + shield.shieldRadius())) shield.absorbPulse(pulses);
+            }
+        }
+        //interference: the ordinary industry next to the resonance machines slows down while the pulse lasts (saved with
+        //each building), unless a field that absorbed the pulse covers it
         for(Building b : state.rules.defaultTeam.data().buildings){
-            if(!resonant.contains(b.block) && (b.block instanceof GenericCrafter || b.block instanceof Drill) && b.within(wx, wy, pulseRadius)){
+            if(interfered(b) && b.within(wx, wy, pulseRadius) && !shielded(b)){
                 b.applySlowdown(pulseSlowdown, pulseDuration);
             }
         }

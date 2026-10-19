@@ -350,3 +350,40 @@ def survey_rig(alt="a"):
     dish.fill(R.circle(cx, cy - 14, 2), "teal", 4)
     lens = glow_layer(n, R.circle(cx, cy - 14, 1.5) | R.rect(9, 9, 8, 8), "teal", 5, falloff=2, alpha=(90, 40), core_alpha=140)
     return {"": base, "-dish": dish, "-glow": lens}
+
+
+def containment_field(alt="a"):
+    """Campo de contenção 2x2: a player-built emitter: braced foot with a core cartridge slot, four field prongs
+    on the diagonals and a stacked emitter column with its lens; the lens and prong tips light (-glow) while the
+    field holds, the status lamp sits on the upper deck (drawn by the game)."""
+    n, cx, cy = 64, 32, 32
+    base = R.Canvas(n, n)
+    K.foundation(base, n)
+    foot = R.regular(cx, cy, 27, 8, 22.5)
+    K.raised(base, foot, "steel", 3, bevel=2, shadow=2)
+    K.wear(base, foot, "field", 0.08)
+    tips = set()
+    for k in range(4):
+        a = math.radians(45 + 90 * k)
+        prong = R.thick(cx + 9 * math.cos(a), cy - 9 * math.sin(a), cx + 25 * math.cos(a), cy - 25 * math.sin(a), 5)
+        K.raised(base, prong, "dark", 4, bevel=1)
+        tx, ty = int(round(cx + 24 * math.cos(a))), int(round(cy - 24 * math.sin(a)))
+        tip = R.circle(tx + 0.5, ty + 0.5, 2.2)
+        base.fill(tip, "teal", 3)
+        tips |= tip
+    # core cartridge slot (bottom) under a hazard band
+    slot = R.chamfer(24, 47, 16, 9, 2)
+    K.raised(base, slot, "dark", 4, bevel=1)
+    base.fill(R.rect(27, 49, 10, 4), "teal", 2)
+    K.stripes(base, R.rect(22, 57, 20, 2), ("amber", 4), ("dark", 1), period=6, width=3)
+    # lamp pad on the upper deck (the status lamp is drawn there)
+    K.raised(base, R.chamfer(28, 7, 8, 6, 1), "dark", 3, bevel=1)
+    # emitter column: stacked rings narrowing to the lens
+    for r, ramp, idx in ((15, "dark", 4), (11, "steel", 4), (7.5, "dark", 5)):
+        K.raised(base, R.circle(cx, cy, r), ramp, idx, bevel=2, shadow=2)
+    base.fill(R.ring(cx, cy, 13.2, 12.4), "teal", 3)
+    base.dome(R.circle(cx, cy, 5), "teal", 2, 5)
+    glow = glow_layer(n, R.circle(cx, cy, 3.5) | R.ring(cx, cy, 13.2, 12.4) | tips, "teal", 5, falloff=2, alpha=(100, 45),
+                      core_alpha=150)
+    return {"": base, "-glow": glow}
+

@@ -135,6 +135,8 @@ add("survey-rig", "special", "blocks/special", "block", special.survey_rig, 2, "
 # --- resonance industry (0.6): the recurring uses of resonance cores
 add("resonance-dynamo", "industry", "blocks/power", "block", industry.resonance_dynamo, 3, "Resonance Dynamo", "Dínamo de Ressonância",
     note="0.6: player frame and copper transformers around a sealed core chamber; the -ring turns with the load.")
+add("containment-field", "special", "blocks/special", "block", special.containment_field, 2, "Containment Field", "Campo de Contenção",
+    note="0.6: a player-built emitter on the stabilizer's ring language, with prongs and a core cartridge slot.")
 
 # --- effects
 add("resonance-glow", "effects", "effects", "effect", effects.resonance_glow, 0, "Resonance Glow", "Iluminação de Ressonância")

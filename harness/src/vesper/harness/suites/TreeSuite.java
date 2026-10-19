@@ -89,6 +89,11 @@ public class TreeSuite implements VesperHarness.Suite{
                 && waitsOn(VSectors.resonanceFault.techNode, VSectors.firstAwakening), "");
             h.check("tree: the Ancient Platform waits on the archive only (not on a choice, not on resonance cores)", ancientPlatform.techNode.requirements.length == 0
                 && ancientPlatform.techNode.objectives.contains(o -> o instanceof ChapterObjective) && !ancientPlatform.techNode.objectives.contains(o -> o instanceof Research r && r.content == resonanceCore), "");
+            h.check("tree: the resonance industry opens once The Buried Foundry is secured (free, not waiting on a first resonance core)", Seq.with(resonanceDynamo, containmentField)
+                .allMatch(b -> b.techNode != null && b.techNode.requirements.length == 0 && waitsOn(b.techNode, VSectors.buriedFoundry)
+                && !b.techNode.objectives.contains(o -> o instanceof Research r && r.content == resonanceCore)) && containmentField.techNode.parent == resonanceDynamo.techNode, "");
+            h.check("tree: the three Chapter One maps do not allow the resonance industry (their block lists are unchanged)", Seq.with("first-awakening", "resonance-fault", "buried-foundry")
+                .allMatch(f -> shipped(f) != null && !allows(shipped(f), resonanceDynamo) && !allows(shipped(f), containmentField)), "");
             //research costs: only what First Awakening's own blocks produce, and nothing a node needs comes after it
             ObjectSet<Item> early = ObjectSet.with(ferroprism, conductiveScrap, vitreousCarbon, structuralAlloy, recoveredCircuit);
             Seq<TechNode> paid = nodes.select(n -> n.requirements.length > 0);
@@ -100,7 +105,8 @@ public class TreeSuite implements VesperHarness.Suite{
 
             //the blocks stay out of other planets' campaigns, never out of custom games
             h.check("visibility: buildable Vesper blocks use the Vesper-only visibility", Seq.with(start).allMatch(b -> b.buildVisibility == VBlocks.vesperOnly)
-                && surveyRig.buildVisibility == VBlocks.vesperOnly && ancientPlatform.buildVisibility == VBlocks.vesperOnly && coreFoothold.buildVisibility == BuildVisibility.editorOnly, "");
+                && surveyRig.buildVisibility == VBlocks.vesperOnly && ancientPlatform.buildVisibility == VBlocks.vesperOnly && coreFoothold.buildVisibility == BuildVisibility.editorOnly
+                && resonanceDynamo.buildVisibility == VBlocks.vesperOnly && containmentField.buildVisibility == VBlocks.vesperOnly, "");
 
             //texts
             Fi bundles = mods.getMod("vesper").root.child("bundles");
@@ -125,6 +131,12 @@ public class TreeSuite implements VesperHarness.Suite{
         }catch(Exception e){
             return null;
         }
+    }
+
+    /** Whether a map's rules let a block be built (its list is a whitelist or a blacklist). */
+    static boolean allows(Map map, Block block){
+        var rules = map.rules();
+        return rules.blockWhitelist == rules.bannedBlocks.contains(block);
     }
 
     static boolean hasVesper(TechNode root){

@@ -190,6 +190,7 @@ public class CampaignSuite implements VesperHarness.Suite{
         s.check("capture: The Buried Foundry and the Survey Rig become available", () -> VSectors.buriedFoundry.unlocked() && surveyRig.unlocked(), () -> "");
         s.check("capture: the archive's platform and the deep region stay locked; the chapter goes on", () -> ancientPlatform.locked() && VSectors.deepSignal.locked()
             && !Chapter.complete(), () -> "");
+        s.check("capture: the resonance industry waits for The Buried Foundry", () -> resonanceDynamo.locked() && containmentField.locked(), () -> "");
         securedDialog(h, s, rf, "campaign-11-resonance-fault-secured");
         saveAndQuit(h, s);
     }
@@ -243,6 +244,8 @@ public class CampaignSuite implements VesperHarness.Suite{
             && Chapter.Record.archiveIndex.found() && Chapter.Record.deepSignal.found() && !Chapter.Record.dismantledMachine.found(), () -> "");
         s.check("capture: the Ancient Platform is recovered technology now", () -> Chapter.archiveRead() && ancientPlatform.unlocked(), () -> "");
         s.check("capture: Chapter One is complete; the deep region stays locked", () -> Chapter.complete() && VSectors.deepSignal.locked(), () -> "");
+        s.check("capture: the resonance industry (dynamo, containment field) becomes available, with no research to pay", () -> resonanceDynamo.unlocked()
+            && containmentField.unlocked(), () -> "dynamo " + resonanceDynamo.unlocked() + ", field " + containmentField.unlocked());
         s.waitFor(() -> UiSuite.dialogText().contains(Core.bundle.get("vesper.chapter.title")), 40f);
         s.check("capture: the chapter's ending is shown", () -> UiSuite.dialogText().contains(Core.bundle.get("vesper.chapter.title"))
             && UiSuite.dialogText().contains(Chapter.Record.deepSignal.title()), () -> UiSuite.dialogText());
@@ -260,7 +263,8 @@ public class CampaignSuite implements VesperHarness.Suite{
             && Chapter.sectors.allMatch(p -> p.sector.isCaptured()), () -> "");
         s.check("restart: six records kept (the dismantled machine's was not found on this run)", () -> Chapter.Record.all.length - 1 == countRecords()
             && !Chapter.Record.dismantledMachine.found(), () -> countRecords() + " records");
-        s.check("restart: the recovered technology and the research are kept", () -> ancientPlatform.unlocked() && heavyWall.unlocked() && powerAccumulator.unlocked(), () -> "");
+        s.check("restart: the recovered technology and the research are kept", () -> ancientPlatform.unlocked() && heavyWall.unlocked() && powerAccumulator.unlocked()
+            && resonanceDynamo.unlocked() && containmentField.unlocked(), () -> "");
         s.run(() -> settingsBefore = chapterSettings());
 
         s.run(() -> ui.planet.show());

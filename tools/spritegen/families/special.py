@@ -387,3 +387,43 @@ def containment_field(alt="a"):
                       core_alpha=150)
     return {"": base, "-glow": glow}
 
+
+def works_relay(alt="a"):
+    """Relé das obras 3x3: the builders' power relay, still wired below: a worn octagonal hull, four conductor
+    posts on the diagonals tied by resonance traces to a deep bus well, and a capacitor crown (-rotator) that turns
+    while the relay is fed; the bus and the posts light up (-glow)."""
+    n, cx, cy = 96, 48, 48
+    base = R.Canvas(n, n)
+    hull = R.regular(cx, cy, 46, 8, 22.5) & R.rect(0, 0, n, n)
+    base.plate(hull, "dark", 3, bevel=2, hi=1, lo=2, rim=1)
+    K.wear(base, hull, "relay", 0.12)
+    K.cracks(base, "relay", (14, 70), 9)
+    posts = set()
+    for k in range(4):
+        a = math.radians(45 + 90 * k)
+        px, py = cx + 31 * math.cos(a), cy - 31 * math.sin(a)
+        post = R.regular(px, py, 7, 6, 0)
+        K.raised(base, post, "dark", 5, bevel=1, shadow=2)
+        base.dome(R.circle(px, py, 3), "teal", 2, 5)
+        posts |= R.circle(px, py, 2)
+        K.trace(base, [(int(px - 7 * math.cos(a)), int(py + 7 * math.sin(a))), (int(cx + 21 * math.cos(a)), int(cy - 21 * math.sin(a)))], node=False)
+    for k in range(4):
+        tab = R.rot90(R.chamfer(42, 4, 12, 8, 2), n, k)
+        K.raised(base, tab, "steel", 3, bevel=1)
+        base.fill(R.rot90(R.rect(45, 6, 6, 3), n, k), "teal", 2)
+    K.raised(base, R.circle(cx, cy, 22), "dark", 4, bevel=2, shadow=2)
+    K.well(base, R.circle(cx, cy, 16), "dark", 1, bevel=1, cast=1)
+    base.fill(R.ring(cx, cy, 11, 9.5), "teal", 2)
+    base.fill(R.circle(cx, cy, 5), "teal", 1)
+
+    rot = R.Canvas(n, n)
+    crown = R.ring(cx, cy, 15, 12)
+    K.plate(rot, crown, "steel", 3, bevel=1)
+    for k in range(6):
+        a = 2 * math.pi * k / 6
+        cell = R.chamfer(int(cx + 13.5 * math.cos(a)) - 2, int(cy + 13.5 * math.sin(a)) - 2, 5, 5, 1)
+        K.plate(rot, cell, "copper", 3, bevel=1)
+    rot.fill(R.circle(cx, cy, 3), "teal", 4)
+
+    glow = glow_layer(n, R.circle(cx, cy, 4) | R.ring(cx, cy, 11, 9.5) | posts, "teal", 5, falloff=3, alpha=(110, 60, 30), core_alpha=150)
+    return {"": base, "-rotator": rot, "-glow": glow}

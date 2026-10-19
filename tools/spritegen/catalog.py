@@ -137,6 +137,8 @@ add("resonance-dynamo", "industry", "blocks/power", "block", industry.resonance_
     note="0.6: player frame and copper transformers around a sealed core chamber; the -ring turns with the load.")
 add("containment-field", "special", "blocks/special", "block", special.containment_field, 2, "Containment Field", "Campo de Contenção",
     note="0.6: a player-built emitter on the stabilizer's ring language, with prongs and a core cartridge slot.")
+add("works-relay", "special", "blocks/ruins", "block", special.works_relay, 3, "Works Relay", "Relé das Obras",
+    note="0.6: the Resonance Works map's ancient relay; the ancient hull and trace language of the reactor and the ruins.")
 
 # --- effects
 add("resonance-glow", "effects", "effects", "effect", effects.resonance_glow, 0, "Resonance Glow", "Iluminação de Ressonância")

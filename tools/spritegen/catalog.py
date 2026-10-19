@@ -132,6 +132,10 @@ add("archive-terminal", "special", "blocks/ruins", "block", special.archive_term
     note="0.4: the approved data terminal design as a surveyable installation.")
 add("survey-rig", "special", "blocks/special", "block", special.survey_rig, 2, "Survey Rig", "Sonda de Investigação")
 
+# --- resonance industry (0.6): the recurring uses of resonance cores
+add("resonance-dynamo", "industry", "blocks/power", "block", industry.resonance_dynamo, 3, "Resonance Dynamo", "Dínamo de Ressonância",
+    note="0.6: player frame and copper transformers around a sealed core chamber; the -ring turns with the load.")
+
 # --- effects
 add("resonance-glow", "effects", "effects", "effect", effects.resonance_glow, 0, "Resonance Glow", "Iluminação de Ressonância")
 add("activity-indicator", "effects", "effects", "effect", effects.activity_indicator, 0, "Activity Indicator", "Indicador de Atividade")

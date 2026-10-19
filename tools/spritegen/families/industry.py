@@ -415,3 +415,64 @@ def component_assembler(alt="a"):
         K.plate(top, joint, "dark", 4, bevel=1)
         top.set(tip, "amber", 6)
     return {"": base, "-top": top}
+
+
+def resonance_dynamo(alt="a"):
+    """Dínamo de ressonância 3x3: a heavy player frame around a sealed core chamber (the resonance core shows
+    through its window), two copper transformer stacks on the flanks, a core feed hopper and an output bus;
+    the energy ring (-ring) turns around the chamber with the load, the chamber and ring light up (-glow)."""
+    n, cx, cy = 96, 48, 48
+    base = R.Canvas(n, n)
+    K.deck(base, n, 7, "steel", 4, inset=3, seed="dynamo", rust=0.07, layout="cross")
+    # transformer stacks: copper windings in dark housings, left and right
+    for side in (0, 2):
+        house = R.rot90(R.chamfer(6, 26, 16, 44, 3), n, side)
+        K.raised(base, house, "dark", 4, bevel=1, shadow=2)
+        for k in range(6):
+            coil = R.rot90(R.rect(9, 30 + k * 6, 10, 4), n, side)
+            base.cylinder(coil, "copper", 2, 5, axis="h" if side in (0, 2) else "v")
+    # core feed hopper (bottom) and output bus (top)
+    hopper = R.chamfer(36, 78, 24, 13, 3)
+    K.raised(base, hopper, "dark", 4, bevel=1)
+    base.cavity(R.rect(41, 81, 14, 7), "dark", 1, bevel=1)
+    base.fill(R.rect(44, 83, 8, 3), "teal", 2)
+    K.stripes(base, R.rect(28, 90, 40, 3), ("amber", 4), ("dark", 1), period=6, width=3)
+    bus = R.chamfer(30, 5, 36, 10, 2)
+    K.raised(base, bus, "amber", 3, bevel=1)
+    for x in (36, 46, 56):
+        base.fill(R.rect(x, 7, 4, 6), "dark", 2)
+        base.fill(R.rect(x + 1, 8, 2, 4), "copper", 4)
+    # the chamber: a deep round well with the core inside
+    collar_m = R.circle(cx, cy, 30)
+    K.raised(base, collar_m, "dark", 4, bevel=2, shadow=2)
+    K.well(base, R.circle(cx, cy, 19), "dark", 1, bevel=1, cast=1)
+    core = R.regular(cx, cy, 10, 6, 30)
+    left, upper = R.rect(0, 0, cx, n), R.rect(0, 0, n, cy)
+    base.facets([(core & left - upper, (-1, -0.6)), (core & left & upper, (-0.6, 1)),
+                 (core & upper - left, (0.7, 1)), (core - left - upper, (1, -0.5))], "teal", 2, 1)
+    for (x, y) in ((10, 10), (84, 10), (10, 84), (84, 84)):
+        K.lamp(base, x, y, "amber", size=2)
+
+    ring = R.Canvas(n, n)
+    band = R.ring(cx, cy, 28, 22)
+    K.plate(ring, band, "steel", 3, bevel=1)
+    for k in range(8):
+        a = 2 * math.pi * k / 8
+        px, py = cx + 25 * math.cos(a), cy + 25 * math.sin(a)
+        node = R.circle(px, py, 3.2)
+        K.plate(ring, node, "copper", 3, bevel=1)
+        ring.set((int(px), int(py)), "teal", 5)
+    ring.fill(R.ring(cx, cy, 22.8, 22), "dark", 2)
+
+    top = R.Canvas(n, n)
+    window = R.ring(cx, cy, 19, 16.5)
+    K.plate(top, window, "steel", 4, bevel=1)
+    for k in range(4):
+        clamp = R.rot90(R.chamfer(44, 27, 8, 6, 1), n, k)
+        K.plate(top, clamp, "steel", 5, bevel=1)
+        top.fill(R.rot90(R.rect(46, 28, 4, 2), n, k), "amber", 4)
+    top.fill(R.circle(cx, cy, 2.5), "teal", 6)
+
+    glow = glow_layer(n, R.circle(cx, cy, 7) | R.ring(cx, cy, 25.5, 24.5) | R.rect(44, 83, 8, 3), "teal", 5, falloff=3,
+                      alpha=(110, 60, 30), core_alpha=160)
+    return {"": base, "-ring": ring, "-top": top, "-glow": glow}

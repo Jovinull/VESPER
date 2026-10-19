@@ -123,6 +123,7 @@ public class VesperHarness extends Mod{
                 case "foundry-mixed" -> new FoundrySuite("mixed");
                 case "industry" -> new IndustrySuite();
                 case "industry-perf" -> new IndustryPerfSuite();
+                case "industry-ui" -> new IndustryUiSuite();
                 case "works-stable" -> new WorksSuite("stable");
                 case "works-intensive" -> new WorksSuite("intensive");
                 case "works-hybrid" -> new WorksSuite("hybrid");

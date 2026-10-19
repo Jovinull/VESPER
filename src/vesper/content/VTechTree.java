@@ -21,7 +21,9 @@ import static vesper.content.VItems.*;
  * Resonance Fault opens with everything it is designed around;</li>
  * <li>recovered technology: the Survey Rig from securing Resonance Fault, so The Buried Foundry opens with it, and
  * the Ancient Platform once its archive is read in the campaign (the decision to restore or dismantle the
- * buried machines does not matter for it);</li>
+ * buried machines does not matter for it); the resonance industry (Resonance Dynamo, Containment Field) once The
+ * Buried Foundry is secured, with no research cost and no wait for a first resonance core (building one still
+ * takes them);</li>
  * <li>upgrades researched with materials (paid from the player's sectors, the ones already secured first), none
  * needed by a mission.</li>
  * </ul>
@@ -66,6 +68,13 @@ public class VTechTree{
                 TechNode platform = node(ancientPlatform, empty, Seq.with(new ChapterObjective("archive", Chapter::archiveRead)), () -> {});
                 //recovered once the archive is read, like on the map itself (building one still takes resonance cores)
                 platform.objectives.removeAll(o -> o instanceof Research r && r.content == resonanceCore);
+
+                //resonance industry: what the recovered foundry teaches about burning and containing cores, once it is secured
+                TechNode dynamo = secured(resonanceDynamo, VSectors.buriedFoundry, () -> {
+                    TechNode field = secured(containmentField, VSectors.buriedFoundry, () -> {});
+                    field.objectives.removeAll(o -> o instanceof Research r && r.content == resonanceCore);
+                });
+                dynamo.objectives.removeAll(o -> o instanceof Research r && r.content == resonanceCore);
             });
 
             nodeProduce(ferroprism, () -> {

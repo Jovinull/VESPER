@@ -22,7 +22,8 @@ import static vesper.content.VItems.*;
  * with a containment field every 12 tiles (169) and a cluster of 9 overlapping fields, during a pulse: the shield
  * lookups a landing pulse makes for every building it reaches, the same lookup for every building of the base (the
  * worst case), the per-frame overload check of every stabilizer; and ten dynamos on one grid of over a thousand
- * consumers (their per-tick demand). Each timing is the median (and the minimum) of 7 runs after 3 warm-up runs,
+ * consumers (their per-tick demand). Then Deep Signal's network mid-synchronization: the terminal and relays' frame, the
+ * objectives, the panel text, and saving and loading. Each timing is the median (and the minimum) of 7 runs after 3 warm-up runs,
  * measured in this process with System.nanoTime; a new frame is simulated where the code caches per frame. Fails
  * only past generous budgets.
  */
@@ -64,6 +65,59 @@ public class IndustryPerfSuite implements VesperHarness.Suite{
             h.line("info: performance: " + dynamos.size + " dynamos on one grid of " + graph.consumers.size + " consumers: " + us(t[0]) + " per tick for all of them (min "
                 + us(t[1]) + ")");
             h.check("performance: " + dynamos.size + " dynamos' ticks on a grid of " + graph.consumers.size + " consumers cost under 2 ms", t[0] < 2f, ms(t[0]));
+        });
+
+        // --- 0.7: Deep Signal's network in the middle of a synchronization (the relay world of the deep suite)
+        s.run(() -> {
+            Rules r = new Rules();
+            r.waves = false;
+            r.waveTimer = false;
+            r.canGameOver = false;
+            r.tags.put(vesper.mission.FirstAwakening.tagScenario, vesper.mission.DeepSignal.scenarioId);
+            r.tags.put(PlanetaryActivity.tagEnabled, "true");
+            r.tags.put(vesper.world.AncientSite.tagEnabled, "true");
+            Worlds.generate(DeepSignalSuite.width, DeepSignalSuite.height, DeepSignalSuite::generate, r);
+        });
+        s.wait(0.5f);
+        s.run(() -> {
+            DeepSignalSuite.terminal().investigate(1f);
+            for(int[] rel : DeepSignalSuite.relays) DeepSignalSuite.feed(world.build(rel[0] - 2, rel[1] + 1), resonanceCore, 200);
+            for(int i = 0; i < 3; i++) DeepSignalSuite.node(i).handleStack(resonanceCore, 100, null);
+        });
+        s.wait(1f);
+        s.run(() -> DeepSignalSuite.terminal().configure(true));
+        s.wait(1f);
+        s.run(() -> {
+            var t = DeepSignalSuite.terminal();
+            var nodes = t.nodes();
+            //a frame of the network: the terminal and its three relays updated (each asks the others' state)
+            float[] network = time(3, 7, 200, () -> {
+                t.updateTile();
+                for(int i = 0; i < nodes.size; i++) nodes.get(i).updateTile();
+            });
+            //what the mission panel asks each frame: every objective's state and text
+            float[] objectives = time(3, 7, 200, () -> {
+                for(var o : Vesper.deep.objectives){
+                    o.done.get();
+                    o.text();
+                }
+            });
+            float[] info = time(3, 7, 50, t::infoText);
+            h.line("info: performance: Deep Signal mid-synchronization (" + t.syncState + "): terminal and 3 relays " + us(network[0]) + " a frame (min " + us(network[1])
+                + "); the 3 objectives and their texts " + us(objectives[0]) + " (min " + us(objectives[1]) + "); the terminal's panel text " + us(info[0]) + " (min " + us(info[1]) + ")");
+            h.check("performance: the terminal and its 3 relays cost under 0.2 ms a frame", network[0] < 0.2f, ms(network[0]));
+            h.check("performance: the Deep Signal objectives cost under 0.2 ms a frame", objectives[0] < 0.2f, ms(objectives[0]));
+            h.check("performance: the terminal's panel text costs under 0.5 ms", info[0] < 0.5f, ms(info[0]));
+            //saving and loading the world mid-synchronization
+            var file = h.out.child("perf-deep.msav");
+            float[] save = time(1, 5, 1, () -> mindustry.io.SaveIO.save(file));
+            long start = System.nanoTime();
+            logic.reset();
+            mindustry.io.SaveIO.load(file);
+            state.set(mindustry.core.GameState.State.playing);
+            float load = (System.nanoTime() - start) / 1e6f;
+            h.line("info: performance: saving the relay world mid-synchronization " + ms(save[0]) + " (min " + ms(save[1]) + "), loading it " + ms(load));
+            h.check("performance: saving the relay world mid-synchronization costs under 200 ms", save[0] < 200f, ms(save[0]));
         });
     }
 

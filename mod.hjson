@@ -4,7 +4,7 @@ author: "Jovinull"
 main: "vesper.Vesper"
 subtitle: "An industrial world that remembers."
 description: "A derelict machine-planet slowly wakes as its ancient industry runs again. Alpha build: the VESPER planet and its campaign (Play > Campaign, then VESPER). Chapter One, The Silent Basin: First Awakening, Resonance Fault and The Buried Foundry, linked by its own tech tree and the records you recover. Chapter Two opens with Deep Signal: below the basin, three relays of an ancient network must run at once, on power and resonance cores, through a synchronization. The maps can also be played on their own (Play > Custom Game), and so can Resonance Works, a standalone map of the resonance industry: dynamos that burn resonance cores for power and containment fields that hold the pulses back."
-version: "0.6.0-alpha"
+version: "0.7.0-alpha"
 minGameVersion: 160.7
 java: true
 hideBrowser: true

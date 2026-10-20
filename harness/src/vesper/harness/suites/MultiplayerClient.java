@@ -101,6 +101,9 @@ public class MultiplayerClient implements VesperHarness.Suite{
                 bot.active = true;
                 bot.deliver(d, resonanceCore, item -> carrying - delivered(d));
             }
+        }else if(data.equals("unloader-cores")){
+            h.line("mp client " + name + ": setting the unloader to take resonance cores");
+            if(world.build(13, 11) instanceof mindustry.world.blocks.storage.Unloader.UnloaderBuild u) u.configure(resonanceCore);
         }else if(data.equals("field-off") || data.equals("field-on")){
             h.line("mp client " + name + ": switching the field " + (data.endsWith("on") ? "on" : "off"));
             if(MultiplayerHost.mpField() != null) MultiplayerHost.mpField().configure(data.endsWith("on"));
@@ -151,7 +154,9 @@ public class MultiplayerClient implements VesperHarness.Suite{
             + ";fieldOnline=" + (MultiplayerHost.mpField() == null ? "-" : MultiplayerHost.mpField().online)
             + ";fieldSpent=" + (MultiplayerHost.mpField() == null ? "-" : MultiplayerHost.mpField().coresSpent)
             + ";fieldOverloaded=" + (MultiplayerHost.mpField() != null && MultiplayerHost.mpField().overloaded())
-            + ";worksVictory=" + Vesper.works.victory + ";worksObjective=" + (Vesper.works.current() == null ? "done" : Vesper.works.current().key);
+            + ";worksVictory=" + Vesper.works.victory + ";worksObjective=" + (Vesper.works.current() == null ? "done" : Vesper.works.current().key)
+            + ";unloaderItem=" + (world.build(13, 11) instanceof mindustry.world.blocks.storage.Unloader.UnloaderBuild u && u.sortItem != null ? u.sortItem.name : "-")
+            + ";logisticsBurned=" + (Worlds.at(18, 10, 3) instanceof vesper.world.ResonanceDynamo.ResonanceDynamoBuild d ? d.coresBurned : -1);
     }
 
     /** Cores this client has put into the dynamo so far: what it holds now plus what it burned. */

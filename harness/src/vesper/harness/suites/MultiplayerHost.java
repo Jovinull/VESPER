@@ -557,6 +557,40 @@ public class MultiplayerHost implements VesperHarness.Suite{
         });
         s.wait(2f);
 
+        // --- 0.7: the cargo unloader, in the logistics world (a map change in the middle of the session)
+        s.run(() -> {
+            WorldReloader reloader = new WorldReloader();
+            reloader.begin();
+            Rules rules = new Rules();
+            rules.waves = false;
+            rules.waveTimer = false;
+            rules.canGameOver = false;
+            rules.loadout.clear();
+            world.loadGenerator(LogisticsSuite.width, LogisticsSuite.height, LogisticsSuite::generate);
+            state.rules = rules;
+            logic.play();
+            reloader.end();
+            state.rules.defaultTeam.core().items.add(resonanceCore, 20);
+        });
+        s.until("mp: both clients follow the change to the logistics world", () -> Groups.player.count(p -> p.unit() != null && !p.dead()) >= 2, 120f, null);
+        s.wait(2f);
+        s.run(() -> send(first(), "unloader-cores"));
+        s.until("mp: a client sets the unloader to take cores; the server applies it and the dynamo starts", () -> LogisticsSuite.unloader(13, 11).sortItem == resonanceCore
+            && LogisticsSuite.dynamo().coresBurned > 0, 60f, LogisticsSuite::state);
+        s.wait(2f);
+        ask(h, s, "unloader");
+        expect(h, s, "mp: both clients see the unloader's filter and the cores the dynamo burned", a -> a.get("unloaderItem").equals(resonanceCore.name)
+            && a.get("logisticsBurned").equals(String.valueOf(LogisticsSuite.dynamo().coresBurned)));
+        s.check("mp: on the server every core taken out is on the belt, in the dynamo or burned (20 of 20)", () -> LogisticsSuite.accounted() == 20,
+            () -> LogisticsSuite.accounted() + " of 20: " + LogisticsSuite.state());
+        s.run(() -> send(second(), "disconnect"));
+        s.until("mp: a client drops out while the unloader works", () -> Groups.player.size() == 1, 30f, null);
+        s.until("mp: it comes back", () -> Groups.player.count(p -> p.unit() != null && !p.dead()) >= 2, 120f, null);
+        s.wait(2f);
+        ask(h, s, "unloader-rejoined");
+        expect(h, s, "mp: the reconnected client sees the filter and the server's count", a -> a.get("unloaderItem").equals(resonanceCore.name)
+            && a.get("logisticsBurned").equals(String.valueOf(LogisticsSuite.dynamo().coresBurned)));
+
         s.run(() -> {
             for(Player p : Groups.player) Call.clientPacketReliable(p.con, packet, "bye");
         });

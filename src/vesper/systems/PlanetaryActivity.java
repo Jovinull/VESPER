@@ -89,7 +89,10 @@ public class PlanetaryActivity{
     private float sampleTimer;
     private String lastSent = "";
     private final Seq<ActivityStabilizer> stabilizers = new Seq<>();
-    private boolean shieldFound;
+    private final Seq<Building> shields = new Seq<>(Building.class);
+    private float shieldsTime = -1f;
+    private int shieldsPulse = -1;
+    private @Nullable Rules shieldsRules;
 
     public PlanetaryActivity(){
         Events.run(Trigger.update, this::update);
@@ -150,17 +153,35 @@ public class PlanetaryActivity{
     public static float shieldReach = 0f;
 
     /**
-     * Whether a shield that absorbed the running pulse covers this building: a lookup in the team's building tree
-     * around it, never a scan of the base (and safe inside an indexer query, which shares one result array).
+     * Whether a shield that absorbed the running pulse covers this building. Only shields within reach of the
+     * epicentre can have absorbed it (the same reach {@link #landPulse} offers the pulse to), so those are collected
+     * once per frame with one lookup in the team's building tree, and each call only checks them: whether each one
+     * still holds the pulse back is read live, so switching one off, starving or destroying it counts at once.
      */
     public boolean shielded(Building build){
-        var tree = build.team.data().buildingTree;
-        if(pulseActive <= 0f || shieldReach <= 0f || tree == null) return false;
-        shieldFound = false;
-        tree.intersect(build.x - shieldReach, build.y - shieldReach, shieldReach * 2f, shieldReach * 2f, other -> {
-            if(!shieldFound && other instanceof PulseShield s && s.shielding() && build.within(other, s.shieldRadius())) shieldFound = true;
+        if(pulseActive <= 0f || shieldReach <= 0f) return false;
+        collectShields();
+        var items = shields.items;
+        for(int i = 0; i < shields.size; i++){
+            Building other = items[i];
+            if(other.team == build.team && other.isValid() && other instanceof PulseShield s && s.shielding() && build.within(other, s.shieldRadius())) return true;
+        }
+        return false;
+    }
+
+    /** The shields within reach of the running pulse's epicentre, gathered at most once per frame (and again for a new pulse or world). */
+    private void collectShields(){
+        if(shieldsTime == Time.time && shieldsRules == state.rules && shieldsPulse == pulses) return;
+        shieldsTime = Time.time;
+        shieldsRules = state.rules;
+        shieldsPulse = pulses;
+        shields.clear();
+        var tree = state.rules.defaultTeam.data().buildingTree;
+        if(tree == null) return;
+        float wx = pulseX * tilesize, wy = pulseY * tilesize, reach = pulseRadius + shieldReach;
+        tree.intersect(wx - reach, wy - reach, reach * 2f, reach * 2f, b -> {
+            if(b instanceof PulseShield s && b.within(wx, wy, pulseRadius + s.shieldRadius())) shields.add(b);
         });
-        return shieldFound;
     }
 
     /** Interference of the running pulse on this building: in its reach and no shield covering it. */

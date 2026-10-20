@@ -38,7 +38,7 @@ public class VBlocks{
     oreFerroprism, oreConductiveScrap, oreResonanceCrystal, oreVitreousCarbon,
 
     //logistics
-    transitBelt, cargoRouter, cargoJunction, cargoBridge, industrialConduit, resonanceLink,
+    transitBelt, cargoRouter, cargoJunction, cargoBridge, cargoUnloader, industrialConduit, resonanceLink,
 
     //extraction
     surveyDrill, reinforcedDrill, scrapCollector, crystalExtractor,
@@ -103,6 +103,14 @@ public class VBlocks{
             speed = 74f;
             arrowSpacing = 6f;
             bufferCapacity = 14;
+        }};
+
+        //takes items out of the core, a container or a machine next to it (one item, or any) and passes them on: the
+        //vanilla unloader's logic (same team only, balanced between stores, filter saved), drawn and priced for Vesper
+        cargoUnloader = new Unloader("cargo-unloader"){{
+            requirements(Category.distribution, with(ferroprism, 25, structuralAlloy, 20, recoveredCircuit, 20));
+            speed = 60f / 11f;
+            group = BlockGroup.transportation;
         }};
 
         industrialConduit = new Conduit("industrial-conduit"){{
@@ -452,7 +460,7 @@ public class VBlocks{
         weights.put(resonanceDynamo, 7f);
         PlanetaryActivity.resonant.addAll(crystalExtractor, experimentalResonator, ancientRecoverer, resonanceDynamo);
 
-        for(Block block : new Block[]{transitBelt, cargoRouter, cargoJunction, cargoBridge, industrialConduit, resonanceLink, surveyDrill, reinforcedDrill,
+        for(Block block : new Block[]{transitBelt, cargoRouter, cargoJunction, cargoBridge, cargoUnloader, industrialConduit, resonanceLink, surveyDrill, reinforcedDrill,
             scrapCollector, crystalExtractor, structuralForge, scrapRecycler, alloyRefinery, mineralCompressor, combustionEngine, powerAccumulator,
             experimentalResonator, componentAssembler, reinforcedWall, heavyWall, kineticTurret, pulseTurret, ancientPlatform, stabilizerPylon, surveyRig,
             resonanceDynamo, containmentField}){

@@ -43,7 +43,13 @@ public class VTechTree{
             })));
 
             //industrial foundations: everything First Awakening is built with; the upgrades are researched
-            start(transitBelt, () -> start(cargoRouter, () -> start(cargoJunction, () -> node(cargoBridge, with(ferroprism, 120, conductiveScrap, 60), () -> {}))));
+            start(transitBelt, () -> start(cargoRouter, () -> {
+                start(cargoJunction, () -> node(cargoBridge, with(ferroprism, 120, conductiveScrap, 60), () -> {}));
+                //the unloader feeds the resonance industry from stored cores: it opens with it, once The Buried Foundry is secured
+                //(no Chapter One map allows it, so it changes none of their missions)
+                TechNode unloader = secured(cargoUnloader, VSectors.buriedFoundry, () -> {});
+                unloader.objectives.removeAll(o -> o instanceof Research r && r.content == resonanceCore);
+            }));
             start(surveyDrill, () -> {
                 start(scrapCollector, () -> {});
                 node(reinforcedDrill, with(ferroprism, 200, structuralAlloy, 50), () -> {});

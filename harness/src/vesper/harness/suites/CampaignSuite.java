@@ -35,6 +35,12 @@ import static vesper.content.VBlocks.*;
  * <li>campaign-4: after a restart, the finished chapter: Deep Signal open, the archive, a secured sector
  * reloaded, a duplicate capture event, a sector abandoned, replayed and lost, a custom game and old saves; none of
  * it changes the chapter's progress.</li>
+ * <li>campaign-5: Deep Signal, Chapter Two's first sector, launched from the planet map and played to its native
+ * capture (the stable strategy): its records, the hook to the region below, Chapter One untouched.</li>
+ * <li>campaign-6: after a restart, Deep Signal still secured; it reloads won and quiet, a duplicate capture changes
+ * nothing, and it is abandoned, replayed and lost without losing what it gave.</li>
+ * <li>campaign-legacy: a profile that finished Chapter One in 0.6 (a fixture, see runCampaign -PcampaignSeed) finds
+ * Deep Signal open at its first start, without replaying anything, and can launch to it.</li>
  * </ul>
  */
 public class CampaignSuite implements VesperHarness.Suite{
@@ -63,9 +69,13 @@ public class CampaignSuite implements VesperHarness.Suite{
             case "campaign-2" -> secondSector(h, s);
             case "campaign-3" -> thirdSector(h, s);
             case "campaign-4" -> afterChapter(h, s);
+            case "campaign-5" -> deepSector(h, s);
+            case "campaign-6" -> afterDeep(h, s);
+            case "campaign-legacy" -> legacyProfile(h, s);
             case "campaign-look" -> look(h, s);
             case "campaign-ui-a" -> uiAfterFirst(h, s);
             case "campaign-ui-b" -> uiAfterChapter(h, s);
+            case "campaign-ui-c" -> uiAfterDeep(h, s);
             case "campaign-mp-host" -> mpHost(h, s);
             case "campaign-mp-client" -> mpGuest(h, s);
             default -> h.fail("campaign: unknown phase", phase);
@@ -376,6 +386,172 @@ public class CampaignSuite implements VesperHarness.Suite{
         });
     }
 
+    // --- campaign-5: Deep Signal, Chapter Two's first sector
+
+    void deepSector(VesperHarness h, Script s){
+        SectorPreset deep = VSectors.deepSignal;
+        s.check("restart: Chapter One complete, Deep Signal open and never played", () -> Chapter.complete() && deep.unlocked() && !deep.sector.hasSave()
+            && !Chapter.secured(deep), () -> chapterSettings());
+        s.run(() -> settingsBefore = chapterSettings());
+        s.run(() -> ui.planet.show());
+        s.wait(1f);
+        s.run(() -> {
+            click(h, ui.planet, VPlanets.vesper.localizedName);
+            ui.planet.lookAt(deep.sector);
+            ui.planet.selectSector(deep.sector);
+        });
+        s.wait(2f);
+        h.shot("campaign-22-deep-signal-open", 0, 0, 1f, true);
+        s.run(() -> click(h, ui.planet, Core.bundle.get("sectors.launch")));
+        s.wait(1f);
+        s.check("launch: the native launch dialog to Deep Signal, with its description", () -> Core.scene.getDialog() != null
+            && UiSuite.dialogText().contains(Core.bundle.get("launch.text")), () -> UiSuite.dialogText());
+        h.shot("campaign-23-deep-signal-launch", 0, 0, 1f, true);
+        s.run(() -> {
+            itemsBefore = stock().toString();
+            click(h, Core.scene.getDialog(), Core.bundle.get("launch.text"));
+        });
+        landing(h, s, deep, "deep-signal");
+        s.check("launch: it cost the secured sectors nothing", () -> stock().toString().equals(itemsBefore), () -> "before " + itemsBefore + ", after " + stock());
+        s.check("landing: Deep Signal lands with its own loadout", () -> state.rules.defaultTeam.core() != null && state.rules.defaultTeam.core().items.get(VItems.resonanceCore) == 100
+            && state.rules.defaultTeam.core().items.get(VItems.ferroprism) == 1600, () -> "");
+        h.shot("campaign-24-deep-signal-landed", 59, 14, 2f, true);
+
+        new DeepPlaySuite("stable", true).define(h, s);
+
+        captured(h, s, deep);
+        s.check("capture: Deep Signal's records were found (the protocol, the three keys, the route to Central Control)", () -> Chapter.Record.signalProtocol.found()
+            && Chapter.Record.relayChambers.found() && Chapter.Record.centralControl.found(), () -> chapterSettings());
+        s.check("capture: Chapter One is untouched (still complete, still three sectors), and nothing marks Chapter Two complete", () -> Chapter.complete()
+            && Chapter.sectors.size == 3 && Chapter.sectors.allMatch(Chapter::secured) && !Core.settings.has("vesper-campaign-chapter-two"), () -> chapterSettings());
+        s.waitFor(() -> UiSuite.dialogText().contains(Core.bundle.format("vesper.secured.title", deep.localizedName)), 20f);
+        s.check("capture: the dialog shows what Deep Signal gave and the route below, which does not open", () -> UiSuite.dialogText().contains(Core.bundle.format("vesper.secured.title", deep.localizedName))
+            && UiSuite.dialogText().contains(Chapter.Record.centralControl.title()) && UiSuite.dialogText().contains(Core.bundle.get("vesper.secured.deeper")), () -> UiSuite.dialogText());
+        h.shot("campaign-25-deep-signal-secured", 60, 45, 2f, true);
+        s.run(() -> click(h, Core.scene.getDialog(), Core.bundle.get("continue")));
+        s.wait(0.5f);
+        saveAndQuit(h, s);
+    }
+
+    // --- campaign-6: what Deep Signal keeps, and what cannot break it
+
+    void afterDeep(VesperHarness h, Script s){
+        SectorPreset deep = VSectors.deepSignal;
+        s.check("restart: Deep Signal still captured and secured, its records kept, Chapter One complete", () -> deep.sector.isCaptured() && Chapter.secured(deep)
+            && Chapter.Record.centralControl.found() && Chapter.Record.signalProtocol.found() && Chapter.complete(), () -> chapterSettings());
+        s.run(() -> settingsBefore = chapterSettings());
+        s.run(() -> ui.planet.show());
+        s.wait(1f);
+        s.run(() -> click(h, ui.planet, Core.bundle.get("vesper.archive")));
+        s.wait(1f);
+        h.shot("campaign-26-archive-chapter-two", 0, 0, 1f, true);
+        s.check("archive: Chapter Two's section lists Deep Signal's records", () -> UiSuite.dialogText().contains(Core.bundle.get("vesper.chapter.two"))
+            && UiSuite.dialogText().contains(Chapter.Record.centralControl.text()) && UiSuite.dialogText().contains(Chapter.Record.relayChambers.title()), () -> UiSuite.dialogText());
+        s.run(() -> Core.scene.getDialog().hide());
+        s.wait(0.5f);
+        //the secured sector reloads as it was left: synchronized, won, nothing fired twice
+        s.run(() -> {
+            captures = 0;
+            click(h, ui.planet, VPlanets.vesper.localizedName);
+            ui.planet.selectSector(deep.sector);
+        });
+        s.wait(1f);
+        s.run(() -> click(h, ui.planet, Core.bundle.get("sectors.go")));
+        s.waitFor(() -> state.isGame() && state.rules.sector == deep.sector, 60f);
+        s.run(h::freeCamera);
+        s.wait(20f);
+        s.check("re-entry: Deep Signal reloads synchronized, won and quiet", () -> Vesper.deep.active() && Vesper.deep.victory && !state.rules.waves
+            && DeepPlaySuite.terminal() != null && DeepPlaySuite.terminal().syncState == vesper.world.SignalTerminal.SyncState.synced && captures == 0 && !state.gameOver,
+            () -> "victory " + Vesper.deep.victory + ", waves " + state.rules.waves + ", captures " + captures);
+        s.run(() -> Events.fire(new SectorCaptureEvent(deep.sector, false)));
+        s.wait(6f);
+        s.check("duplicate event: a second capture of Deep Signal changes nothing", () -> chapterSettings().equals(settingsBefore), () -> chapterSettings());
+        s.run(() -> {
+            if(Core.scene.getDialog() != null) Core.scene.getDialog().hide();
+        });
+        saveAndQuit(h, s);
+
+        //replaying it: abandon, land again on a fresh map, lose it
+        s.run(() -> ui.planet.show());
+        s.wait(1f);
+        s.run(() -> {
+            click(h, ui.planet, VPlanets.vesper.localizedName);
+            ui.planet.selectSector(deep.sector);
+            ui.planet.abandonSectorConfirm(deep.sector, null);
+        });
+        s.wait(1f);
+        s.run(() -> click(h, Core.scene.getDialog(), Core.bundle.get("ok")));
+        s.wait(1f);
+        s.check("replay: Deep Signal abandoned (no base), what it gave untouched", () -> !deep.sector.hasBase() && chapterSettings().equals(settingsBefore)
+            && deep.unlocked(), () -> "base " + deep.sector.hasBase());
+        s.run(() -> {
+            ui.planet.selectSector(deep.sector);
+            click(h, ui.planet, Core.bundle.get("sectors.launch"));
+        });
+        s.wait(1f);
+        s.run(() -> click(h, Core.scene.getDialog(), Core.bundle.get("launch.text")));
+        landing(h, s, deep, "deep-signal");
+        s.check("replay: a fresh Deep Signal (terminal unexplored, nothing done, its own loadout)", () -> Vesper.deep.active() && Vesper.deep.completed == 0
+            && !Vesper.deep.victory && DeepPlaySuite.terminal() != null && DeepPlaySuite.terminal().siteState == vesper.world.AncientSite.SiteState.unexplored
+            && state.rules.defaultTeam.core() != null && state.rules.defaultTeam.core().items.get(VItems.resonanceCore) == 100, () -> "objectives " + Vesper.deep.completed);
+        s.run(() -> state.rules.defaultTeam.cores().copy().each(c -> c.kill()));
+        s.waitFor(() -> state.gameOver, 30f);
+        s.wait(4f);
+        s.check("defeat: the replayed Deep Signal is lost, and nothing it gave is (records, Chapter One, the route)", () -> state.gameOver && !deep.sector.hasBase()
+            && chapterSettings().equals(settingsBefore) && Chapter.complete() && Chapter.Record.centralControl.found(), () -> chapterSettings());
+        s.run(() -> {
+            if(ui.restart.isShown()) ui.restart.hide();
+            ui.paused.runExitSave();
+        });
+        s.waitFor(() -> state.isMenu(), 30f);
+        //the scenario as a custom game, from the custom games list: no campaign touched
+        s.run(() -> Worlds.play(Worlds.bundled(ContentSuite.deepName), mindustry.game.Gamemode.survival));
+        s.wait(1f);
+        s.check("custom game: Deep Signal as a custom game is no campaign, and builds Vesper blocks", () -> !state.isCampaign() && Vesper.deep.active()
+            && resonanceDynamo.environmentBuildable() && resonanceDynamo.isPlaceable() && cargoUnloader.isPlaceable(), () -> "");
+        s.check("custom game: the campaign's progress is unchanged", () -> chapterSettings().equals(settingsBefore), () -> chapterSettings());
+        s.run(() -> {
+            logic.reset();
+            state.set(mindustry.core.GameState.State.menu);
+        });
+    }
+
+    // --- campaign-legacy: a profile that finished Chapter One in 0.6
+
+    void legacyProfile(VesperHarness h, Script s){
+        SectorPreset deep = VSectors.deepSignal;
+        s.check("0.6 profile: Chapter One complete, its three sectors captured and secured, as 0.6 left them", () -> Chapter.complete()
+            && Chapter.sectors.allMatch(Chapter::secured) && Chapter.sectors.allMatch(p -> p.sector.isCaptured() && p.sector.hasSave()), () -> chapterSettings());
+        s.check("0.6 profile: Deep Signal is open at the first start of 0.7, with nothing replayed", () -> deep.unlocked() && !deep.sector.hasSave()
+            && !Chapter.secured(deep) && !Chapter.Record.signalProtocol.found(), () -> chapterSettings());
+        s.run(() -> settingsBefore = chapterSettings());
+        s.run(() -> ui.planet.show());
+        s.wait(1.5f);
+        s.run(() -> {
+            if(Core.scene.getDialog() != ui.planet && Core.scene.getDialog() != null) Core.scene.getDialog().hide();
+        });
+        s.wait(0.5f);
+        s.run(() -> {
+            click(h, ui.planet, VPlanets.vesper.localizedName);
+            ui.planet.lookAt(deep.sector);
+            ui.planet.selectSector(deep.sector);
+        });
+        s.wait(2f);
+        h.shot("campaign-legacy-01-deep-signal-open", 0, 0, 1f, true);
+        s.check("0.6 profile: the planet map offers the launch to Deep Signal", () -> button(ui.planet, Core.bundle.get("sectors.launch")) != null
+            && !button(ui.planet, Core.bundle.get("sectors.launch")).isDisabled(), () -> UiSuite.dialogText());
+        s.run(() -> click(h, ui.planet, Core.bundle.get("sectors.launch")));
+        s.wait(1f);
+        s.run(() -> click(h, Core.scene.getDialog(), Core.bundle.get("launch.text")));
+        landing(h, s, deep, "deep-signal");
+        s.check("0.6 profile: Deep Signal lands fresh, with its loadout; Chapter One's progress is untouched", () -> Vesper.deep.active() && Vesper.deep.completed == 0
+            && state.rules.defaultTeam.core().items.get(VItems.resonanceCore) == 100 && Chapter.complete() && Chapter.sectors.allMatch(Chapter::secured), () -> chapterSettings());
+        h.shot("campaign-legacy-02-deep-signal-landed", 59, 14, 2f, true);
+        saveAndQuit(h, s);
+        s.check("0.6 profile: after leaving, Deep Signal has its save and the chapter is as before", () -> deep.sector.hasSave() && chapterSettings().equals(settingsBefore),
+            () -> chapterSettings());
+    }
+
     // --- campaign-mp-host / campaign-mp-client: a campaign sector hosted for a second player
 
     static final String packet = "vesper-campaign";
@@ -654,6 +830,55 @@ public class CampaignSuite implements VesperHarness.Suite{
         dialogLayout(h, s, "chapter complete");
         s.run(() -> Core.scene.getDialog().hide());
         s.run(() -> {
+            logic.reset();
+            state.set(mindustry.core.GameState.State.menu);
+        });
+    }
+
+    /** After Deep Signal: the planet map with Chapter Two's first sector secured, the archive's second section, the sector's dialog and its terminal. */
+    void uiAfterDeep(VesperHarness h, Script s){
+        SectorPreset deep = VSectors.deepSignal;
+        uiStart(h, s);
+        s.run(() -> ui.planet.show());
+        s.wait(1f);
+        s.run(() -> {
+            click(h, ui.planet, VPlanets.vesper.localizedName);
+            ui.planet.lookAt(deep.sector);
+            ui.planet.selectSector(deep.sector);
+        });
+        s.wait(2f);
+        uiShot(h, s, "01-deep-signal-secured");
+        planetLayout(h, s, "planet map after Deep Signal");
+        s.run(() -> click(h, ui.planet, Core.bundle.get("vesper.archive")));
+        s.wait(1f);
+        uiShot(h, s, "02-archive-chapter-two");
+        dialogLayout(h, s, "archive with Chapter Two");
+        s.check("ui " + phase + ": the archive lists Chapter Two's section and its records", () -> UiSuite.dialogText().contains(Core.bundle.get("vesper.chapter.two"))
+            && UiSuite.dialogText().contains(Chapter.Record.centralControl.title()), () -> UiSuite.dialogText());
+        s.run(() -> Core.scene.getDialog().hide());
+        s.wait(0.5f);
+        s.run(() -> {
+            ui.planet.selectSector(deep.sector);
+            click(h, ui.planet, Core.bundle.get("sectors.go"));
+        });
+        s.waitFor(() -> state.isGame() && state.rules.sector == deep.sector, 60f);
+        s.wait(3f);
+        s.run(() -> Vesper.chapterUi.showSecured(deep));
+        s.wait(1f);
+        uiShot(h, s, "03-deep-signal-secured-dialog");
+        dialogLayout(h, s, "Deep Signal secured");
+        s.run(() -> Core.scene.getDialog().hide());
+        s.run(() -> {
+            var t = DeepPlaySuite.terminal();
+            if(t != null){
+                h.look(t.tileX(), t.tileY(), 2.5f);
+                control.input.config.showConfig(t);
+            }
+        });
+        s.wait(1f);
+        uiShot(h, s, "04-terminal-synchronized");
+        s.run(() -> {
+            control.input.config.hideConfig();
             logic.reset();
             state.set(mindustry.core.GameState.State.menu);
         });

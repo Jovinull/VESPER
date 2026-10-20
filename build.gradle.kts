@@ -184,18 +184,22 @@ tasks.register("runCampaign"){
     group = "vesper"
     description = "Plays Chapter One as a campaign in a profile of its own (run/campaign, recreated unless -PcampaignKeep): " +
         "one client start per phase (-PcampaignPhases=campaign-1,...), so each phase finds what the last one saved. " +
-        "Reports and screenshots go to run/campaign-reports; fails if a phase fails. -PharnessSpeed, -PharnessWindow and -PharnessLocale as runClient."
+        "Reports and screenshots go to run/campaign-reports; fails if a phase fails. -PharnessSpeed, -PharnessWindow and -PharnessLocale as runClient. " +
+        "-PcampaignSeed=dir starts the new profile as a copy of dir (an older version's profile, e.g. harness/profiles/campaign-0.6)."
     val modJar = tasks.jar.flatMap{ it.archiveFile }
     val harnessFile = harnessJar.flatMap{ it.archiveFile }
     dependsOn(tasks.jar, harnessJar, downloadGame)
     doLast{
-        val phases = ((project.findProperty("campaignPhases") as String?) ?: "campaign-1,campaign-2,campaign-3,campaign-4").split(",").map{ it.trim() }
+        val phases = ((project.findProperty("campaignPhases") as String?) ?: "campaign-1,campaign-2,campaign-3,campaign-4,campaign-5,campaign-6").split(",").map{ it.trim() }
         val speed = (project.findProperty("harnessSpeed") as String?) ?: "1"
         val window = project.findProperty("harnessWindow") as String?
         val locale = project.findProperty("harnessLocale") as String?
         val profile = runDir.dir("campaign").asFile
         val reports = runDir.dir("campaign-reports").asFile
-        if(!project.hasProperty("campaignKeep")) profile.deleteRecursively()
+        if(!project.hasProperty("campaignKeep")){
+            profile.deleteRecursively()
+            (project.findProperty("campaignSeed") as String?)?.let{ file(it).copyRecursively(profile, true) }
+        }
         reports.mkdirs()
         val mods = File(profile, "mods")
         mods.mkdirs()
@@ -230,8 +234,8 @@ tasks.register("runCampaign"){
 
 tasks.register("runCampaignUi"){
     group = "vesper"
-    description = "The campaign's screens in the profiles runCampaign left (run/campaign-snapshots): after First Awakening and after the " +
-        "chapter, in English and Portuguese, at the default window size and at 1280x720. Screenshots and reports in run/campaign-ui-reports."
+    description = "The campaign's screens in the profiles runCampaign left (run/campaign-snapshots): after First Awakening, after the " +
+        "chapter and after Deep Signal, in English and Portuguese, at the default window size and at 1280x720. Screenshots and reports in run/campaign-ui-reports."
     val modJar = tasks.jar.flatMap{ it.archiveFile }
     val harnessFile = harnessJar.flatMap{ it.archiveFile }
     dependsOn(tasks.jar, harnessJar, downloadGame)
@@ -241,7 +245,7 @@ tasks.register("runCampaignUi"){
         reports.mkdirs()
         val java = File(System.getProperty("java.home"), "bin/java").absolutePath
         val failed = mutableListOf<String>()
-        for((state, snapshotName) in listOf("campaign-ui-a" to "campaign-1", "campaign-ui-b" to "campaign-3")){
+        for((state, snapshotName) in listOf("campaign-ui-a" to "campaign-1", "campaign-ui-b" to "campaign-3", "campaign-ui-c" to "campaign-5")){
             val snapshot = runDir.dir("campaign-snapshots/$snapshotName").asFile
             if(!snapshot.exists()) throw GradleException("No $snapshotName profile in $snapshot: run runCampaign first")
             for(locale in listOf("en_US", "pt_BR")){

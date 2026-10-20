@@ -6,6 +6,7 @@ import arc.graphics.g2d.*;
 import arc.math.*;
 import arc.util.*;
 import arc.util.io.*;
+import mindustry.core.*;
 import mindustry.gen.*;
 import mindustry.graphics.*;
 import mindustry.type.*;
@@ -139,14 +140,17 @@ public class ContainmentField extends Block{
 
         @Override
         public boolean absorbPulse(int pulse){
+            //clients see the outcome at once, not with the next periodic block snapshot
             if(ready() && items.has(fuel, absorbCost)){
                 items.remove(fuel, absorbCost);
                 coresSpent += absorbCost;
                 absorbedPulse = pulse;
                 held = true;
+                sync();
                 return true;
             }
             overloadedPulse = pulse;
+            sync();
             return false;
         }
 
@@ -187,10 +191,16 @@ public class ContainmentField extends Block{
             strain = Mathf.approachDelta(strain, shielding() ? 1f : overloaded() ? 0.6f : 0f, 1f / 30f);
         }
 
+        /** Sends this field's state to the clients now (the server's periodic block snapshots come every few seconds). */
+        void sync(){
+            if(net.server()) NetServer.syncBuilding(this);
+        }
+
         void drop(){
             absorbedPulse = -1;
             held = false;
             Vesper.activity.unshield(this, radius);
+            if(isValid()) sync();
         }
 
         @Override

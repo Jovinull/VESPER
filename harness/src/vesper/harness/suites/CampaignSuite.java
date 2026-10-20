@@ -408,11 +408,12 @@ public class CampaignSuite implements VesperHarness.Suite{
             && UiSuite.dialogText().contains(Core.bundle.get("launch.text")), () -> UiSuite.dialogText());
         h.shot("campaign-23-deep-signal-launch", 0, 0, 1f, true);
         s.run(() -> {
-            itemsBefore = stock().toString();
+            itemsBefore = chapterOneStock().toString();
             click(h, Core.scene.getDialog(), Core.bundle.get("launch.text"));
         });
         landing(h, s, deep, "deep-signal");
-        s.check("launch: it cost the secured sectors nothing", () -> stock().toString().equals(itemsBefore), () -> "before " + itemsBefore + ", after " + stock());
+        s.check("launch: it cost Chapter One's secured sectors nothing", () -> chapterOneStock().toString().equals(itemsBefore),
+            () -> "before " + itemsBefore + ", after " + chapterOneStock());
         s.check("landing: Deep Signal lands with its own loadout", () -> state.rules.defaultTeam.core() != null && state.rules.defaultTeam.core().items.get(VItems.resonanceCore) == 100
             && state.rules.defaultTeam.core().items.get(VItems.ferroprism) == 1600, () -> "");
         h.shot("campaign-24-deep-signal-landed", 59, 14, 2f, true);
@@ -424,7 +425,8 @@ public class CampaignSuite implements VesperHarness.Suite{
             && Chapter.Record.relayChambers.found() && Chapter.Record.centralControl.found(), () -> chapterSettings());
         s.check("capture: Chapter One is untouched (still complete, still three sectors), and nothing marks Chapter Two complete", () -> Chapter.complete()
             && Chapter.sectors.size == 3 && Chapter.sectors.allMatch(Chapter::secured) && !Core.settings.has("vesper-campaign-chapter-two"), () -> chapterSettings());
-        s.waitFor(() -> UiSuite.dialogText().contains(Core.bundle.format("vesper.secured.title", deep.localizedName)), 20f);
+        //the dialog waits for the HUD's announcements (the victory and the records found at the capture), up to 40 s
+        s.waitFor(() -> UiSuite.dialogText().contains(Core.bundle.format("vesper.secured.title", deep.localizedName)), 60f);
         s.check("capture: the dialog shows what Deep Signal gave and the route below, which does not open", () -> UiSuite.dialogText().contains(Core.bundle.format("vesper.secured.title", deep.localizedName))
             && UiSuite.dialogText().contains(Chapter.Record.centralControl.title()) && UiSuite.dialogText().contains(Core.bundle.get("vesper.secured.deeper")), () -> UiSuite.dialogText());
         h.shot("campaign-25-deep-signal-secured", 60, 45, 2f, true);
@@ -520,8 +522,10 @@ public class CampaignSuite implements VesperHarness.Suite{
 
     void legacyProfile(VesperHarness h, Script s){
         SectorPreset deep = VSectors.deepSignal;
-        s.check("0.6 profile: Chapter One complete, its three sectors captured and secured, as 0.6 left them", () -> Chapter.complete()
-            && Chapter.sectors.allMatch(Chapter::secured) && Chapter.sectors.allMatch(p -> p.sector.isCaptured() && p.sector.hasSave()), () -> chapterSettings());
+        //as 0.6's own campaign-4 left it: Resonance Fault was abandoned, replayed and lost there (secured, not captured)
+        s.check("0.6 profile: Chapter One complete and its three sectors secured, as 0.6 left them", () -> Chapter.complete()
+            && Chapter.sectors.allMatch(Chapter::secured) && VSectors.firstAwakening.sector.isCaptured() && VSectors.buriedFoundry.sector.isCaptured()
+            && !VSectors.resonanceFault.sector.isCaptured(), () -> chapterSettings());
         s.check("0.6 profile: Deep Signal is open at the first start of 0.7, with nothing replayed", () -> deep.unlocked() && !deep.sector.hasSave()
             && !Chapter.secured(deep) && !Chapter.Record.signalProtocol.found(), () -> chapterSettings());
         s.run(() -> settingsBefore = chapterSettings());
@@ -945,6 +949,13 @@ public class CampaignSuite implements VesperHarness.Suite{
     }
 
     // --- helpers
+
+    /** Items in Chapter One's sectors (what a launch from them would have to pay). */
+    static ItemSeq chapterOneStock(){
+        ItemSeq out = new ItemSeq();
+        for(SectorPreset p : Chapter.sectors) if(p.sector.hasBase()) out.add(p.sector.items());
+        return out;
+    }
 
     /** Items across the player's VESPER sectors, as the research dialog counts them. */
     static ItemSeq stock(){

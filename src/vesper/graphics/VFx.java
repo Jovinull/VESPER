@@ -82,5 +82,32 @@ public class VFx{
         Lines.stroke(3f * e.fout());
         Lines.poly(e.x, e.y, 6, 10f + e.fin() * 26f, 30f);
         Draw.reset();
+    }),
+
+    /** A relay node interrupted: red static crackles around it. e.rotation is its footprint size. */
+    signalInterference = new Effect(50f, 200f, e -> {
+        float reach = Math.max(e.rotation, 16f);
+        Draw.color(VPal.dangerLight, VPal.danger, e.fin());
+        Lines.stroke(1.6f * e.fout());
+        Angles.randLenVectors(e.id, 10, reach * (0.4f + e.fin() * 0.6f), (x, y) -> Lines.lineAngle(e.x + x, e.y + y, Mathf.angle(x, y) + 90f, 3f + e.fout() * 4f));
+        Lines.square(e.x, e.y, reach * 0.55f, 45f + e.fin() * 20f);
+        Draw.reset();
+    }),
+
+    /** The deep network synchronized: rings sweep out from the terminal and sparks race outwards. e.rotation is its footprint size. */
+    signalSynced = new Effect(150f, 900f, e -> {
+        TextureRegion ring = Core.atlas.find("vesper-energy-pulse");
+        float reach = Math.max(e.rotation, 32f);
+        for(int i = 0; i < 3; i++){
+            float f = Mathf.clamp(e.fin() * 1.6f - i * 0.25f);
+            if(f <= 0f) continue;
+            Draw.color(Color.white, VPal.resonanceLight, f);
+            Draw.alpha((1f - f) * 0.8f);
+            Draw.rect(ring, e.x, e.y, reach * 6f * f, reach * 6f * f);
+        }
+        Draw.color(VPal.resonanceLight);
+        Lines.stroke(2f * e.fout());
+        Angles.randLenVectors(e.id, 16, reach * 0.6f + e.finpow() * reach * 3.5f, (x, y) -> Lines.lineAngle(e.x + x, e.y + y, Mathf.angle(x, y), 6f * e.fout()));
+        Draw.reset();
     });
 }

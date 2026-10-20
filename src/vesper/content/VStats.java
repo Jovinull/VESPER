@@ -14,7 +14,8 @@ public class VStats{
     resonance = new Stat("vesper-resonance", StatCat.function),
     stabilization = new Stat("vesper-stabilization", StatCat.function),
     coreEnergy = new Stat("vesper-core-energy", StatCat.power),
-    containment = new Stat("vesper-containment", StatCat.function);
+    containment = new Stat("vesper-containment", StatCat.function),
+    signal = new Stat("vesper-signal", StatCat.function);
 
     public static void addResonance(Stats stats){
         var a = Vesper.activity;

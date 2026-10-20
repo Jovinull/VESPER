@@ -57,7 +57,10 @@ public class VBlocks{
     surveyRig, ancientRecoverer, archiveTerminal,
 
     //resonance industry: recurring uses for resonance cores, and the relay of the Resonance Works map
-    resonanceDynamo, containmentField, worksRelay;
+    resonanceDynamo, containmentField, worksRelay,
+
+    //the Underworks (Deep Signal): built floors and walls, the deep network's terminal and relay nodes
+    hullPlating, signalChannel, bulkheadWall, signalTerminal, signalNode;
 
     /**
      * Visibility of every buildable Vesper block: everywhere but the campaigns of other planets, where the tech tree
@@ -446,6 +449,31 @@ public class VBlocks{
             consumePower(8f);
         }};
 
+        //the Underworks: created after everything else, so no earlier content changes id
+        hullPlating = new Floor("hull-plating", 3);
+        signalChannel = new Floor("signal-channel", 3){{
+            emitLight = true;
+            lightRadius = 24f;
+            lightColor = VPal.resonance.cpy().a(0.22f);
+        }};
+        bulkheadWall = new StaticWall("bulkhead-wall");
+
+        signalTerminal = new SignalTerminal("signal-terminal"){{
+            requirements(Category.effect, BuildVisibility.sandboxOnly, with(structuralAlloy, 200));
+            size = 4;
+            health = 6000;
+            investigateTime = 40f * 60f;
+            investigateSurge = 10f;
+            glowColor = VPal.resonanceLight;
+        }};
+
+        signalNode = new SignalNode("signal-node"){{
+            requirements(Category.effect, BuildVisibility.sandboxOnly, with(structuralAlloy, 150));
+            size = 3;
+            health = 4000;
+            consumePower(2f);
+        }};
+
         //planetary activity: how much a working building of each kind disturbs the basin
         var weights = PlanetaryActivity.weights;
         weights.put(structuralForge, 3f);
@@ -458,7 +486,7 @@ public class VBlocks{
         weights.put(reinforcedDrill, 2f);
         weights.put(crystalExtractor, 4f);
         weights.put(resonanceDynamo, 7f);
-        PlanetaryActivity.resonant.addAll(crystalExtractor, experimentalResonator, ancientRecoverer, resonanceDynamo);
+        PlanetaryActivity.resonant.addAll(crystalExtractor, experimentalResonator, ancientRecoverer, resonanceDynamo, signalNode);
 
         for(Block block : new Block[]{transitBelt, cargoRouter, cargoJunction, cargoBridge, cargoUnloader, industrialConduit, resonanceLink, surveyDrill, reinforcedDrill,
             scrapCollector, crystalExtractor, structuralForge, scrapRecycler, alloyRefinery, mineralCompressor, combustionEngine, powerAccumulator,

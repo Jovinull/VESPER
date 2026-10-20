@@ -81,6 +81,8 @@ add("transit-belt", "logistics", "blocks/distribution", "block", logistics.trans
 add("cargo-router", "logistics", "blocks/distribution", "block", logistics.cargo_router, 1, "Cargo Router", "Distribuidor")
 add("cargo-junction", "logistics", "blocks/distribution", "block", logistics.cargo_junction, 1, "Cargo Junction", "Cruzamento")
 add("cargo-bridge", "logistics", "blocks/distribution", "block", logistics.cargo_bridge, 1, "Cargo Bridge", "Ponte Logística")
+add("cargo-unloader", "logistics", "blocks/distribution", "block", logistics.cargo_unloader, 1, "Cargo Unloader", "Descarregador de Carga",
+    note="0.7: the Vesper unloader; the router's frame language with gripper mouths; -center is tinted with the chosen item.")
 add("industrial-conduit", "logistics", "blocks/liquid", "block", logistics.industrial_conduit, 1, "Industrial Conduit", "Conduto Industrial")
 add("resonance-link", "logistics", "blocks/power", "block", logistics.resonance_link, 1, "Resonance Link", "Conector de Ressonância")
 

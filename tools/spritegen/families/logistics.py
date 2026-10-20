@@ -243,3 +243,23 @@ def resonance_link():
     for r, idx, a in ((22, 5, 60), (17, 5, 120), (12, 6, 200), (8, 6, 255)):
         end.fill(R.circle(36, 36, r), "pale", idx, a)
     return {"": c, "-glow": glow, "-laser": laser, "-laser-end": end}
+
+
+def cargo_unloader():
+    """Descarregador (0.7): a sorting hopper that draws cargo out of the store next to it and passes it on: four
+    gripper mouths, a recessed selector cup in the middle; -center is the white mask the game tints with the item."""
+    c = R.Canvas(N, N)
+    K.frame(c, N, "steel", 3, chamfer=3, bevel=2)
+    for k in range(4):
+        mouth = R.rot90(R.rect(11, 0, 10, 7), N, k)
+        c.cavity(mouth, "dark", 1, bevel=1)
+        for jaw in ((11, 2), (19, 2)):
+            c.fill(R.rot90(R.rect(jaw[0], jaw[1], 2, 4), N, k), "amber", 3)
+    body = R.chamfer(7, 7, 18, 18, 4)
+    K.raised(c, body, "dark", 4, bevel=1)
+    c.cavity(R.chamfer(10, 10, 12, 12, 3), "dark", 1, bevel=1, cast=1)
+    for p in ((8, 8), (23, 8), (8, 23), (23, 23)):
+        K.stud(c, p[0], p[1], "steel", 6)
+    center = R.Canvas(N, N)
+    center.fill(R.chamfer(12, 12, 8, 8, 2), "team", 2)
+    return {"": c, "-center": center}

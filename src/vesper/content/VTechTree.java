@@ -38,8 +38,9 @@ public class VTechTree{
     public static void load(){
         root = nodeRoot("vesper", coreFoothold, () -> {
             node(VSectors.firstAwakening, () -> node(VSectors.resonanceFault, () -> node(VSectors.buriedFoundry, () -> {
-                //the region below: shown in the tree and on the map, waiting on a requirement this version never meets
-                node(VSectors.deepSignal, Seq.with(new ChapterObjective("unavailable", () -> false)), () -> {});
+                //the region below opens once Chapter One is complete (in a new profile, or one that finished it in an older version:
+                //the native unlock check runs at every start and after every capture)
+                node(VSectors.deepSignal, Seq.with(new ChapterObjective("chapter-one", Chapter::complete)), () -> {});
             })));
 
             //industrial foundations: everything First Awakening is built with; the upgrades are researched

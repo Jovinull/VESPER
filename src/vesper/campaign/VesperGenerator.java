@@ -151,7 +151,7 @@ public class VesperGenerator extends PlanetGenerator{
 
     @Override
     public void getLockedText(Sector hovered, StringBuilder out){
-        if(hovered.preset != null && hovered.preset == VSectors.deepSignal){
+        if(hovered.preset != null && hovered.preset == VSectors.deepSignal && hovered.preset.locked()){
             out.append("[#").append(signal).append("]").append(hovered.preset.localizedName).append("\n[lightgray]").append(Core.bundle.get("vesper.deep.locked"));
         }else{
             super.getLockedText(hovered, out);

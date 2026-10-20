@@ -32,7 +32,7 @@ import static vesper.content.VBlocks.*;
  * <li>campaign-3: two upgrades researched in the native tech tree with what the secured sectors kept; The Buried
  * Foundry played to its capture (a machine restored, the archive read): the Ancient Platform is recovered and the
  * chapter ends.</li>
- * <li>campaign-4: after a restart, the finished chapter: the deep region locked, the archive, a secured sector
+ * <li>campaign-4: after a restart, the finished chapter: Deep Signal open, the archive, a secured sector
  * reloaded, a duplicate capture event, a sector abandoned, replayed and lost, a custom game and old saves; none of
  * it changes the chapter's progress.</li>
  * </ul>
@@ -243,12 +243,15 @@ public class CampaignSuite implements VesperHarness.Suite{
         s.check("capture: the Foundry's records were found (the restored machine's, the archive's, the signal)", () -> Chapter.Record.restoredMachine.found()
             && Chapter.Record.archiveIndex.found() && Chapter.Record.deepSignal.found() && !Chapter.Record.dismantledMachine.found(), () -> "");
         s.check("capture: the Ancient Platform is recovered technology now", () -> Chapter.archiveRead() && ancientPlatform.unlocked(), () -> "");
-        s.check("capture: Chapter One is complete; the deep region stays locked", () -> Chapter.complete() && VSectors.deepSignal.locked(), () -> "");
+        //the native unlock check runs right after the capture: Deep Signal waits on Chapter One's end and nothing else
+        s.waitFor(() -> VSectors.deepSignal.unlocked(), 5f);
+        s.check("capture: Chapter One is complete and Deep Signal (Chapter Two) opens; Chapter One stays three sectors", () -> Chapter.complete()
+            && VSectors.deepSignal.unlocked() && !VSectors.deepSignal.sector.hasSave() && Chapter.sectors.size == 3 && !Chapter.secured(VSectors.deepSignal), () -> "");
         s.check("capture: the resonance industry (dynamo, containment field) becomes available, with no research to pay", () -> resonanceDynamo.unlocked()
             && containmentField.unlocked(), () -> "dynamo " + resonanceDynamo.unlocked() + ", field " + containmentField.unlocked());
         s.waitFor(() -> UiSuite.dialogText().contains(Core.bundle.get("vesper.chapter.title")), 40f);
-        s.check("capture: the chapter's ending is shown", () -> UiSuite.dialogText().contains(Core.bundle.get("vesper.chapter.title"))
-            && UiSuite.dialogText().contains(Chapter.Record.deepSignal.title()), () -> UiSuite.dialogText());
+        s.check("capture: the chapter's ending is shown, and says where Chapter Two starts", () -> UiSuite.dialogText().contains(Core.bundle.get("vesper.chapter.title"))
+            && UiSuite.dialogText().contains(Chapter.Record.deepSignal.title()) && UiSuite.dialogText().contains(Core.bundle.get("vesper.chapter.next")), () -> UiSuite.dialogText());
         h.shot("campaign-16-chapter-complete", 30, 28, 2f, true);
         s.run(() -> click(h, Core.scene.getDialog(), Core.bundle.get("continue")));
         s.wait(0.5f);
@@ -261,8 +264,9 @@ public class CampaignSuite implements VesperHarness.Suite{
         SectorPreset fa = VSectors.firstAwakening, rf = VSectors.resonanceFault, bf = VSectors.buriedFoundry, deep = VSectors.deepSignal;
         s.check("restart: the chapter is still complete, all three sectors secured and captured", () -> Chapter.complete() && Chapter.sectors.allMatch(Chapter::secured)
             && Chapter.sectors.allMatch(p -> p.sector.isCaptured()), () -> "");
-        s.check("restart: six records kept (the dismantled machine's was not found on this run)", () -> Chapter.Record.all.length - 1 == countRecords()
-            && !Chapter.Record.dismantledMachine.found(), () -> countRecords() + " records");
+        s.check("restart: six of Chapter One's seven records kept (the dismantled machine's was not found on this run), none of Chapter Two's yet",
+            () -> countRecords() == 6 && !Chapter.Record.dismantledMachine.found() && !Chapter.Record.signalProtocol.found() && !Chapter.Record.centralControl.found(),
+            () -> countRecords() + " records");
         s.check("restart: the recovered technology and the research are kept", () -> ancientPlatform.unlocked() && heavyWall.unlocked() && powerAccumulator.unlocked()
             && resonanceDynamo.unlocked() && containmentField.unlocked(), () -> "");
         s.run(() -> settingsBefore = chapterSettings());
@@ -278,12 +282,9 @@ public class CampaignSuite implements VesperHarness.Suite{
         });
         s.wait(1.5f);
         h.shot("campaign-18-deep-signal", 0, 0, 1f, true);
-        s.check("deep region: shown as not available in this version, and locked", () -> UiSuite.dialogText().contains(Core.bundle.get("vesper.requirement.unavailable"))
-            && button(ui.planet, Core.bundle.get("locked")) != null && button(ui.planet, Core.bundle.get("locked")).isDisabled() && !deep.sector.hasSave(),
-            () -> UiSuite.dialogText());
-        s.run(() -> button(ui.planet, Core.bundle.get("locked")).fireClick());
-        s.wait(1f);
-        s.check("deep region: the locked button launches nothing", () -> state.isMenu() && !deep.sector.hasSave(), () -> "");
+        s.check("Deep Signal: open after the restart, and can be launched to from the planet map (not played yet)", () -> deep.unlocked()
+            && button(ui.planet, Core.bundle.get("sectors.launch")) != null && !button(ui.planet, Core.bundle.get("sectors.launch")).isDisabled()
+            && button(ui.planet, Core.bundle.get("locked")) == null && !deep.sector.hasSave(), () -> UiSuite.dialogText());
         s.run(() -> click(h, ui.planet, Core.bundle.get("vesper.archive")));
         s.wait(1f);
         h.shot("campaign-19-archive", 0, 0, 1f, true);
@@ -740,16 +741,17 @@ public class CampaignSuite implements VesperHarness.Suite{
         h.fail("research: node of " + content.name, "not found in the tech tree");
     }
 
+    /** Chapter One's records found. */
     static int countRecords(){
         int n = 0;
-        for(var r : Chapter.Record.all) if(r.found()) n++;
+        for(var r : Chapter.Record.all) if(r.found() && r.sector < Chapter.sectors.size) n++;
         return n;
     }
 
     /** Everything the chapter keeps in the profile, as one string to compare. */
     static String chapterSettings(){
         StringBuilder out = new StringBuilder();
-        for(var p : Chapter.sectors) out.append(p.name).append('=').append(Chapter.secured(p)).append(p.unlocked() ? "+" : "-").append(' ');
+        for(var p : Chapter.all()) out.append(p.name).append('=').append(Chapter.secured(p)).append(p.unlocked() ? "+" : "-").append(' ');
         for(var r : Chapter.Record.all) out.append(r.id).append('=').append(r.found()).append(' ');
         out.append("complete=").append(Chapter.complete()).append(" archive=").append(Chapter.archiveRead()).append(" platform=").append(ancientPlatform.unlocked());
         return out.toString();

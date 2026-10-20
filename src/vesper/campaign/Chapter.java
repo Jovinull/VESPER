@@ -28,6 +28,11 @@ import static mindustry.Vars.*;
 public class Chapter{
     /** The chapter's sectors in order; securing one makes the next available (through the tech tree). */
     public static final Seq<SectorPreset> sectors = new Seq<>();
+    /**
+     * Chapter Two's sectors so far (Deep Signal): opened by the end of Chapter One, never part of it. Securing one
+     * records it like a Chapter One sector, but nothing here marks Chapter Two complete: its other sectors do not exist yet.
+     */
+    public static final Seq<SectorPreset> deeper = new Seq<>();
     static final String prefix = "vesper-campaign-";
 
     /** Short records the player recovers, a few per sector; texts in the bundles ({@code vesper.record.<id>.*}). */
@@ -38,12 +43,15 @@ public class Chapter{
         restoredMachine("restored-machine", 2),
         dismantledMachine("dismantled-machine", 2),
         archiveIndex("archive-index", 2),
-        deepSignal("deep-signal", 2);
+        deepSignal("deep-signal", 2),
+        signalProtocol("signal-protocol", 3),
+        relayChambers("relay-chambers", 3),
+        centralControl("central-control", 3);
 
         public static final Record[] all = values();
 
         public final String id;
-        /** Index in {@link #sectors} of the sector where it is found. */
+        /** Index in {@link #all()} of the sector where it is found. */
         public final int sector;
 
         Record(String id, int sector){
@@ -98,9 +106,14 @@ public class Chapter{
         Events.on(ResetEvent.class, e -> session.clear());
     }
 
-    /** Whether the world being played is a sector of this chapter. */
+    /** Every campaign sector with records: Chapter One's, then Chapter Two's. */
+    public static Seq<SectorPreset> all(){
+        return sectors.copy().addAll(deeper);
+    }
+
+    /** Whether the world being played is a sector of the campaign on VESPER (either chapter). */
     public static boolean inChapter(){
-        return state.isCampaign() && state.rules.sector != null && sectors.contains(state.rules.sector.preset);
+        return state.isCampaign() && state.rules.sector != null && (sectors.contains(state.rules.sector.preset) || deeper.contains(state.rules.sector.preset));
     }
 
     public static boolean secured(SectorPreset preset){
@@ -135,6 +148,8 @@ public class Chapter{
             if(Vesper.fault.completed >= 2) discover(Record.resonanceNetwork);
             if(Vesper.activity.pulses > 0 || Vesper.activity.patrols > 0 || Vesper.activity.pending > 0f) discover(Record.containment);
         }
+        //the three relays running at once: they answer each other
+        if(Vesper.deep.active() && Vesper.deep.completed >= 2) discover(Record.relayChambers);
     }
 
     void site(SiteBuild site){
@@ -142,6 +157,9 @@ public class Chapter{
         if(site.block == VBlocks.ancientRecoverer){
             if(site.siteState == SiteState.restored) discover(Record.restoredMachine);
             if(site.siteState == SiteState.dismantled) discover(Record.dismantledMachine);
+        }else if(site.block == VBlocks.signalTerminal){
+            if(site.siteState != SiteState.unexplored) discover(Record.signalProtocol);
+            if(site instanceof vesper.world.SignalTerminal.TerminalBuild t && t.syncState == vesper.world.SignalTerminal.SyncState.synced) discover(Record.centralControl);
         }else if(site.block == VBlocks.archiveTerminal && site.siteState == SiteState.investigated){
             discover(Record.archiveIndex);
             if(!net.client() && !archiveRead()){
@@ -153,7 +171,7 @@ public class Chapter{
     }
 
     void captured(Sector sector, boolean initial){
-        int index = sectors.indexOf(sector.preset);
+        int index = all().indexOf(sector.preset);
         if(index < 0) return;
         boolean ended = false;
         //the sector's records belong to its story even when a trigger was skipped (a quiet Resonance Fault, say)
@@ -162,7 +180,8 @@ public class Chapter{
         }
         if(!net.client()){
             Core.settings.put(prefix + "secured-" + sector.preset.name, true);
-            if(!complete() && sectors.allMatch(Chapter::secured)){
+            //Chapter One ends with its three sectors; a Chapter Two sector never counts towards it
+            if(!complete() && sectors.contains(sector.preset) && sectors.allMatch(Chapter::secured)){
                 Core.settings.put(prefix + "chapter-one", true);
                 ended = true;
                 //the deep region starts to answer on the planet's surface

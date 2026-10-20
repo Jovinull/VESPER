@@ -1,5 +1,6 @@
 package vesper.harness.suites;
 
+import arc.*;
 import arc.files.*;
 import arc.struct.*;
 import arc.util.*;
@@ -64,8 +65,24 @@ public class TreeSuite implements VesperHarness.Suite{
             h.check("sectors: First Awakening, Resonance Fault and The Buried Foundry are neighbours in that order", VSectors.firstAwakening.sector.isNear(VSectors.resonanceFault.sector)
                 && VSectors.resonanceFault.sector.isNear(VSectors.buriedFoundry.sector) && VSectors.buriedFoundry.sector.isNear(VSectors.deepSignal.sector)
                 && !VSectors.firstAwakening.sector.isNear(VSectors.buriedFoundry.sector), "");
-            h.check("sectors: the deep region is a locked marker, never playable", VSectors.deepSignal.sector.id == 42 && VSectors.deepSignal.requireUnlock
-                && !Chapter.sectors.contains(VSectors.deepSignal) && VSectors.deepSignal.techNode.objectives.contains(o -> o instanceof ChapterObjective c && !c.complete()), "");
+            //Deep Signal: Chapter Two's first sector, on the id its marker always had, opened by the end of Chapter One and never part of it
+            SectorPreset deep = VSectors.deepSignal;
+            Map deepMap = deep.generator.map, deepReal = shipped("deep-signal");
+            Rules deepRules = new Rules();
+            deep.rules.get(deepRules);
+            h.check("sector deep-signal: id 42, the shipped map, rules untouched, a native capture", deep.sector.id == 42 && deep.planet == p && deepMap != null
+                && deepMap.file.name().equals("deep-signal." + mapExtension) && DeepSignal.scenarioId.equals(deepMap.rules().tags.get(FirstAwakening.tagScenario))
+                && deep.captureWave == -1 && deepRules.winWave == 0, "id " + deep.sector.id + ", map " + (deepMap == null ? "-" : deepMap.file.name()));
+            h.check("sector deep-signal: Chapter Two, not Chapter One (the chapter still ends with its three sectors)", !Chapter.sectors.contains(deep)
+                && Chapter.deeper.contains(deep) && Chapter.sectors.size == 3, "");
+            h.check("sector deep-signal: the launch charges nothing, the map still lands with its loadout", deepMap != null && deepMap.rules().loadout.isEmpty()
+                && deepReal != null && deepReal.rules().loadout.size > 0, deepReal == null ? "" : "loadout " + deepReal.rules().loadout);
+            //the native tree adds The Buried Foundry's capture (its parent), which Chapter One's end implies
+            h.check("sector deep-signal: opens with Chapter One complete and on nothing else", deep.requireUnlock && deep.techNode.parent == VSectors.buriedFoundry.techNode
+                && deep.techNode.requirements.length == 0 && deep.techNode.objectives.size == 2 && waitsOn(deep.techNode, VSectors.buriedFoundry)
+                && deep.techNode.objectives.contains(o -> o instanceof ChapterObjective c && c.display().equals(Core.bundle.get("vesper.requirement.chapter-one"))
+                && c.complete() == Chapter.complete()), deep.techNode.objectives.toString());
+            h.check("sector deep-signal: not shown as an enemy base", !deep.sector.hasEnemyBase(), "");
 
             //the tree
             TechNode root = VTechTree.root;
@@ -74,7 +91,7 @@ public class TreeSuite implements VesperHarness.Suite{
             h.check("tree: VESPER's own root, on the planet", p.techTree == root && TechTree.roots.contains(root) && nodes.allMatch(n -> n.planet == p), nodes.size + " nodes");
             h.check("tree: only Vesper content in it", nodes.allMatch(n -> n.content.minfo.mod != null && n.content.minfo.mod.name.equals("vesper")), "");
             h.check("tree: Serpulo's and Erekir's trees hold no Vesper content", !hasVesper(Planets.serpulo.techTree) && !hasVesper(Planets.erekir.techTree), "");
-            h.check("tree: every buildable Vesper block of the three maps is in it", missingFromTree().isEmpty(), "missing " + missingFromTree());
+            h.check("tree: every buildable Vesper block of the campaign maps is in it", missingFromTree().isEmpty(), "missing " + missingFromTree());
 
             //what First Awakening is built with: free, no objective, unlocked from the start
             Block[] start = {transitBelt, cargoRouter, cargoJunction, resonanceLink, surveyDrill, scrapCollector, structuralForge, componentAssembler, combustionEngine,
@@ -120,7 +137,7 @@ public class TreeSuite implements VesperHarness.Suite{
             Seq<String> used = Seq.with("planet.vesper-planet.name", "planet.vesper-planet.description", "techtree.vesper", "vesper.deep.locked", "vesper.record.announce",
                 "vesper.secured.title", "vesper.secured.available", "vesper.secured.next", "vesper.chapter.title", "vesper.chapter.subtitle", "vesper.chapter.text",
                 "vesper.chapter.next", "vesper.archive", "vesper.archive.title", "vesper.archive.unknown", "vesper.intro.title", "vesper.intro.text", "vesper.intro.go",
-                "vesper.intro.later", "vesper.requirement.archive", "vesper.requirement.unavailable");
+                "vesper.intro.later", "vesper.requirement.archive", "vesper.requirement.chapter-one", "vesper.secured.deeper", "vesper.chapter.two");
             for(SectorPreset preset : new SectorPreset[]{VSectors.firstAwakening, VSectors.resonanceFault, VSectors.buriedFoundry, VSectors.deepSignal}){
                 used.addAll("sector." + preset.name + ".name", "sector." + preset.name + ".description");
             }
@@ -164,10 +181,10 @@ public class TreeSuite implements VesperHarness.Suite{
         return false;
     }
 
-    /** Blocks allowed by one of the three maps (whitelists) without a node in the tree. */
+    /** Blocks allowed by one of the campaign maps (whitelists) without a node in the tree. */
     static Seq<String> missingFromTree(){
         Seq<String> out = new Seq<>();
-        for(String file : new String[]{"first-awakening", "resonance-fault", "buried-foundry"}){
+        for(String file : new String[]{"first-awakening", "resonance-fault", "buried-foundry", "deep-signal"}){
             Map map = shipped(file);
             if(map == null) continue;
             for(Block b : map.rules().bannedBlocks){

@@ -90,7 +90,7 @@ public class ChapterUi{
     public void showSecured(SectorPreset preset){
         BaseDialog dialog = new BaseDialog(Core.bundle.format("vesper.secured.title", preset.localizedName));
         Table c = scrolling(dialog);
-        records(c, Chapter.sectors.indexOf(preset));
+        records(c, Chapter.all().indexOf(preset));
 
         var unlocked = Chapter.unlockedBy(preset).select(UnlockableContent::unlocked);
         if(unlocked.any()){
@@ -105,8 +105,10 @@ public class ChapterUi{
         }
 
         int index = Chapter.sectors.indexOf(preset);
-        SectorPreset next = index + 1 < Chapter.sectors.size ? Chapter.sectors.get(index + 1) : null;
+        SectorPreset next = index >= 0 && index + 1 < Chapter.sectors.size ? Chapter.sectors.get(index + 1) : null;
         if(next != null) c.add(Core.bundle.format("vesper.secured.next", next.localizedName)).wrap().color(Pal.lightishGray).padTop(12f).row();
+        //Chapter Two's first sector: the network answered from deeper still, a region this version does not open
+        if(Chapter.deeper.contains(preset)) c.add("@vesper.secured.deeper").wrap().color(Pal.lightishGray).padTop(12f).row();
 
         dialog.buttons.defaults().size(240f, 60f);
         dialog.buttons.button("@continue", Icon.ok, dialog::hide);
@@ -141,12 +143,16 @@ public class ChapterUi{
         BaseDialog dialog = new BaseDialog("@vesper.archive.title");
         dialog.cont.pane(p -> {
             p.defaults().width(textWidth()).left();
-            for(int i = 0; i < Chapter.sectors.size; i++){
-                p.add(Chapter.sectors.get(i).localizedName).color(VPal.resonance).padTop(i == 0 ? 0f : 16f).row();
+            var all = Chapter.all();
+            for(int i = 0; i < all.size; i++){
+                //Chapter Two's sectors show once they are open
+                if(Chapter.deeper.contains(all.get(i)) && all.get(i).locked()) continue;
+                if(i == Chapter.sectors.size) p.add("@vesper.chapter.two").color(Pal.accent).padTop(20f).row();
+                p.add(all.get(i).localizedName).color(VPal.resonance).padTop(i == 0 ? 0f : 16f).row();
                 p.image().color(Pal.gray).height(3f).growX().padBottom(4f).row();
                 records(p, i);
+                if(i == Chapter.sectors.size - 1 && Chapter.complete()) p.add("@vesper.chapter.title").color(Pal.accent).padTop(16f).row();
             }
-            if(Chapter.complete()) p.add("@vesper.chapter.title").color(Pal.accent).padTop(16f).row();
         }).growY().maxHeight(Core.graphics.getHeight() * 0.7f / Scl.scl());
         dialog.addCloseButton();
         dialog.show();

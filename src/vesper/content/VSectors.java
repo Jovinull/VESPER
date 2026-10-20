@@ -12,7 +12,7 @@ public class VSectors{
     public static final int firstAwakeningId = 12, resonanceFaultId = 77, buriedFoundryId = 27, deepSignalId = 42;
 
     public static SectorPreset firstAwakening, resonanceFault, buriedFoundry;
-    /** The region below the Basin: shown, never playable in this version. */
+    /** The region below the Basin, the first sector of Chapter Two: available once Chapter One is complete. */
     public static SectorPreset deepSignal;
 
     public static void load(){
@@ -37,17 +37,20 @@ public class VSectors{
             rules = r -> {};
         }};
 
-        //a locked marker next to the Foundry: its tech node waits on a requirement that is never met in this version.
-        //It has no map of its own; the gallery stands in, so even a forced launch lands somewhere harmless
+        //Chapter Two's first sector, on the id the locked marker always had. Its map ships with the mod (the harness
+        //generates it): a development build that has not generated it yet lands on the gallery instead of failing to load
+        boolean shipped = tree != null && tree.get("maps/deep-signal." + mapExtension).exists();
         deepSignal = new SectorPreset("deep-signal", (LoadedMod)null){{
-            generator = new FileMapGenerator(maps == null ? null : maps.loadInternalMap("vesper-gallery"), this);
+            generator = new FileMapGenerator(maps == null ? null : maps.loadInternalMap(shipped ? "deep-signal" : "vesper-gallery"), this);
             captureWave = -1;
-            difficulty = 10f;
+            difficulty = 8f;
             rules = r -> {};
         }};
         deepSignal.initialize(VPlanets.vesper, deepSignalId);
 
         Chapter.sectors.addAll(firstAwakening, resonanceFault, buriedFoundry);
+        Chapter.deeper.add(deepSignal);
         Chapter.sectors.each(Chapter::freeLaunch);
+        Chapter.deeper.each(Chapter::freeLaunch);
     }
 }

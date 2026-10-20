@@ -129,6 +129,9 @@ public class VesperHarness extends Mod{
                 case "works-stable" -> new WorksSuite("stable");
                 case "works-intensive" -> new WorksSuite("intensive");
                 case "works-hybrid" -> new WorksSuite("hybrid");
+                case "deep-stable" -> new DeepPlaySuite("stable");
+                case "deep-intensive" -> new DeepPlaySuite("intensive");
+                case "deep-redundant" -> new DeepPlaySuite("redundant");
                 case "defeat" -> new DefeatSuite();
                 case "gallery" -> new GallerySuite();
                 case "ui" -> new UiSuite();

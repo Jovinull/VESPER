@@ -124,6 +124,7 @@ public class VesperHarness extends Mod{
                 case "industry" -> new IndustrySuite();
                 case "logistics" -> new LogisticsSuite();
                 case "deep" -> new DeepSignalSuite();
+                case "deep-ui" -> new DeepUiSuite();
                 case "industry-perf" -> new IndustryPerfSuite();
                 case "industry-ui" -> new IndustryUiSuite();
                 case "works-stable" -> new WorksSuite("stable");

@@ -2,8 +2,10 @@ package vesper.harness.suites;
 
 import arc.files.*;
 import arc.graphics.*;
+import arc.math.*;
 import arc.math.geom.*;
 import arc.struct.*;
+import arc.util.*;
 import mindustry.content.*;
 import mindustry.game.*;
 import mindustry.gen.*;
@@ -126,6 +128,99 @@ public class MapsSuite implements VesperHarness.Suite{
         h.shot("works-02-floor", 38, 34, 2.5f, false);
         h.shot("works-03-hall", 44, 51, 3f, false);
         h.shot("works-04-east-lane", 70, 36, 2f, false);
+
+        s.run(() -> {
+            logic.reset();
+            world.loadGenerator(DeepSignalMap.width, DeepSignalMap.height, DeepSignalMap::generate);
+            state.rules = DeepSignalMap.rules();
+            DeepSignalMap.addMarkers();
+            logic.play();
+        });
+        s.wait(0.3f);
+        s.run(() -> {
+            save(h, "deep-signal", DeepSignalMap.tags());
+            dump(h.out.child("maps").child("deep-signal-tiles.txt"));
+            checkDeep(h);
+            noAncientDeconstruction(h, "deep map");
+        });
+        s.run(() -> state.rules.waveTimer = false);
+        h.shot("deep-01-bay", 59, 13, 2f, false);
+        h.shot("deep-02-fabrication", 94, 15, 2f, false);
+        h.shot("deep-03-control-hall", 60, 45, 2f, false);
+        h.shot("deep-04-west-relay", 15, 45, 2.5f, false);
+        h.shot("deep-05-east-relay", 103, 45, 2.5f, false);
+        h.shot("deep-06-north-relay", 60, 80, 2f, false);
+        h.shot("deep-07-breach", 100, 84, 2f, false);
+    }
+
+    /** The tiles the reference layout builds the core logistics on: the unloader over the core, the trunk up the shaft, the hub and three branches. */
+    public static Seq<int[]> deepRoute(){
+        Seq<int[]> out = new Seq<>();
+        for(int y = 13; y <= 43; y++) out.add(new int[]{58, y});
+        for(int x = 15; x <= 57; x++) out.add(new int[]{x, 43});
+        for(int x = 59; x <= 100; x++) out.add(new int[]{x, 43});
+        for(int y = 44; y <= 76; y++) out.add(new int[]{58, y});
+        return out;
+    }
+
+    static void checkDeep(VesperHarness h){
+        Team player = DeepSignalMap.player;
+        h.check("deep map: every decoration and seam fits the terrain", DeepSignalMap.skipped.isEmpty(), "skipped: " + DeepSignalMap.skipped);
+        h.check("deep map: one player core, one ground spawn", player.data().cores.size == 1 && spawner.countSpawns() == 1,
+            "cores " + player.data().cores.size + ", spawns " + spawner.countSpawns());
+        var terminals = player.data().getBuildings(VBlocks.signalTerminal);
+        var relays = player.data().getBuildings(VBlocks.signalNode);
+        h.check("deep map: the control terminal and three relays, the player's, the terminal unexplored", terminals.size == 1 && relays.size == 3
+            && terminals.first() instanceof vesper.world.SignalTerminal.TerminalBuild t && t.siteState == vesper.world.AncientSite.SiteState.unexplored, "");
+        h.check("deep map: only the core, the terminal and the relays are the player's", player.data().buildings.size == 5, player.data().buildings.size + " player buildings");
+        h.check("deep map: the relays cannot be deconstructed and draw fire", relays.allMatch(b -> !Build.validBreak(player, b.tileX(), b.tileY()))
+            && VBlocks.signalNode.targetable, "");
+        Tile core = player.core().tile;
+        Tile spawn = spawner.getSpawns().first();
+        h.check("deep map: ground path breach -> core", reachable(spawn, core), "from " + spawn.x + "," + spawn.y);
+        h.check("deep map: three vents", DeepSignalMap.gateTiles.size == 3, "gates " + DeepSignalMap.gateTiles.size);
+        for(int[] g : DeepSignalMap.gateTiles){
+            Tile gate = world.tile(g[0], g[1]);
+            h.check("deep map: vent " + g[0] + "," + g[1] + " open and connected to the core", gate != null && !gate.solid() && reachable(gate, core), "");
+        }
+        //what the reference layout needs at every relay: a dynamo west of it, two routers under both, all on open ground
+        for(int[] n : DeepSignalMap.nodes){
+            boolean room = Build.validPlace(VBlocks.resonanceDynamo, player, n[0] - 3 + 1, n[1] + 1, 0)
+                && Build.validPlace(VBlocks.cargoRouter, player, n[0], n[1] - 1, 0) && Build.validPlace(VBlocks.cargoRouter, player, n[0] - 1, n[1] - 1, 0);
+            h.check("deep map: room for a dynamo and routers at the relay " + n[0] + "," + n[1], room, "");
+        }
+        Seq<String> blocked = new Seq<>();
+        for(int[] p : deepRoute()) if(!Build.validPlace(VBlocks.transitBelt, player, p[0], p[1], 0)) blocked.add(p[0] + "," + p[1]);
+        h.check("deep map: the trunk and the three branches run on open ground", blocked.isEmpty(), blocked.size + " blocked: " + blocked);
+        //the pulses land on the working relay machine nearest a vent: the north relay is that one, by a clear margin
+        float[] nearest = new float[3];
+        for(int i = 0; i < 3; i++){
+            int[] n = DeepSignalMap.nodes[i];
+            float best = Float.MAX_VALUE;
+            for(int[] g : DeepSignalMap.gateTiles){
+                //the relay, and the dynamo beside it
+                best = Math.min(best, Math.min(Mathf.dst(n[0] + 1, n[1] + 1, g[0], g[1]), Mathf.dst(n[0] - 2, n[1] + 1, g[0], g[1])));
+            }
+            nearest[i] = best;
+        }
+        h.check("deep map: the north relay is the one nearest a vent (where the pulses land)", nearest[2] + 1f < Math.min(nearest[0], nearest[1]),
+            "west " + Strings.fixed(nearest[0], 1) + ", east " + Strings.fixed(nearest[1], 1) + ", north " + Strings.fixed(nearest[2], 1));
+        for(Block ore : new Block[]{VBlocks.oreFerroprism, VBlocks.oreVitreousCarbon, VBlocks.oreConductiveScrap}){
+            int count = 0;
+            for(Tile t : world.tiles){
+                if(t.overlay() == ore && t.block() == Blocks.air && t.within(core, 22 * tilesize)) count++;
+            }
+            h.check("deep map: starting " + ore.name + " near the core", count >= 16, count + " tiles");
+        }
+        int crystal = 0;
+        for(Tile t : world.tiles) if(t.overlay() == VBlocks.oreResonanceCrystal && t.block() == Blocks.air && t.x >= 76 && t.y <= 26) crystal++;
+        h.check("deep map: crystal for three extractors in the fabrication hall", crystal >= 12, crystal + " tiles");
+        int carbon = 0;
+        for(int x = 102; x < 108; x++) for(int y = 18; y < 20; y++) if(world.tile(x, y).overlay() == VBlocks.oreVitreousCarbon && world.tile(x, y).block() == Blocks.air) carbon++;
+        h.check("deep map: a carbon seam for three drills of their own in the fabrication hall", carbon == 12, carbon + " tiles");
+        h.check("deep map: the underworks are dark (lighting on), a Chapter Two scenario with the response and the archaeology tag", state.rules.lighting
+            && vesper.mission.DeepSignal.scenarioId.equals(state.rules.tags.get(vesper.mission.FirstAwakening.tagScenario))
+            && state.rules.tags.getBool(vesper.world.AncientSite.tagEnabled) && state.rules.tags.getBool(vesper.systems.PlanetaryActivity.tagResponse), "");
     }
 
     static void checkWorks(VesperHarness h){
@@ -250,7 +345,7 @@ public class MapsSuite implements VesperHarness.Suite{
             sb.append(String.format("%3d ", y));
             for(int x = 0; x < world.width(); x++){
                 Tile t = world.tile(x, y);
-                char c = t.block() == VBlocks.machineBasaltWall ? '#' : t.build != null ? 'B' : t.overlay() == Blocks.spawn ? 'P'
+                char c = t.block() instanceof mindustry.world.blocks.environment.StaticWall ? '#' : t.build != null ? 'B' : t.overlay() == Blocks.spawn ? 'P'
                     : t.overlay() == VBlocks.oreFerroprism ? 'F' : t.overlay() == VBlocks.oreVitreousCarbon ? 'C'
                     : t.overlay() == VBlocks.oreConductiveScrap ? 'S' : t.overlay() == VBlocks.oreResonanceCrystal ? 'X'
                     : t.floor() == VBlocks.rustedPlating ? '=' : '.';

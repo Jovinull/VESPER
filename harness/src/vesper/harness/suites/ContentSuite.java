@@ -18,7 +18,7 @@ import static mindustry.Vars.*;
 /** Every Vesper content has its icons and regions, the bundled maps are listed, and both bundles have the same keys and every text the missions use. */
 public class ContentSuite implements VesperHarness.Suite{
     public static final String galleryName = "Vesper Gallery", basinName = "First Awakening - The Silent Basin", faultName = "Resonance Fault - The Silent Basin",
-        foundryName = "The Buried Foundry - The Silent Basin", worksName = "Resonance Works";
+        foundryName = "The Buried Foundry - The Silent Basin", worksName = "Resonance Works", deepName = "Deep Signal";
 
     @Override
     public void define(VesperHarness h, Script s){
@@ -47,7 +47,7 @@ public class ContentSuite implements VesperHarness.Suite{
                 && wall.large.found(), "2 variants + large");
             }
 
-            for(String name : new String[]{galleryName, basinName, faultName, foundryName, worksName}){
+            for(String name : new String[]{galleryName, basinName, faultName, foundryName, worksName, deepName}){
                 var map = maps.all().find(m -> m.mod != null && m.mod.name.equals("vesper") && m.name().equals(name));
                 h.check("bundled map listed: " + name, map != null, map == null ? "not found" : map.width + "x" + map.height);
             }

@@ -623,6 +623,8 @@ public class MultiplayerHost implements VesperHarness.Suite{
             for(int[] r : DeepSignalSuite.relays) DeepSignalSuite.feed(world.build(r[0] - 2, r[1] + 1), resonanceCore, 40);
             DeepSignalSuite.node(0).handleStack(resonanceCore, 10, null);
             DeepSignalSuite.node(1).handleStack(resonanceCore, 10, null);
+            //what the fixture put in reaches the clients now (belts would have carried it on their side too)
+            for(int[] r : DeepSignalSuite.relays) NetServer.syncBuilding(world.build(r[0] - 2, r[1] + 1));
             for(int i = 0; i < 3; i++) NetServer.syncBuilding(DeepSignalSuite.node(i));
             NetServer.syncBuilding(DeepSignalSuite.terminal());
         });
@@ -634,7 +636,10 @@ public class MultiplayerHost implements VesperHarness.Suite{
         ask(h, s, "deep-refused");
         expect(h, s, "mp: both clients see the terminal idle and the third relay starved", a -> a.get("deep").equals("true") && a.get("terminal").equals("idle")
             && a.get("relays").equals("operational,operational,starved"));
-        s.run(() -> DeepSignalSuite.node(2).handleStack(resonanceCore, 10, null));
+        s.run(() -> {
+            DeepSignalSuite.node(2).handleStack(resonanceCore, 10, null);
+            NetServer.syncBuilding(DeepSignalSuite.node(2));
+        });
         s.wait(1f);
         s.run(() -> send(second(), "deep-start"));
         s.until("mp: the other client starts the synchronization; the server applies it", () -> DeepSignalSuite.terminal().syncState == vesper.world.SignalTerminal.SyncState.syncing,
@@ -672,9 +677,10 @@ public class MultiplayerHost implements VesperHarness.Suite{
             state.set(State.playing);
             reloader.end();
             h.line("mp: the relay world saved and reloaded on the server: " + savedSnapshot);
+            //compared before the world runs another tick (the synchronization keeps advancing afterwards)
+            h.check("mp: the synchronization and every relay survive save and load on the server", DeepSignalSuite.saved().equals(savedSnapshot),
+                "before " + savedSnapshot + ", after " + DeepSignalSuite.saved());
         });
-        s.check("mp: the synchronization and every relay survive save and load on the server", () -> DeepSignalSuite.saved().equals(savedSnapshot),
-            () -> "before " + savedSnapshot + ", after " + DeepSignalSuite.saved());
         s.until("mp: both clients are back in the relay world", () -> Groups.player.count(p -> p.unit() != null && !p.dead()) >= 2, 120f, null);
         s.wait(2f);
         ask(h, s, "deep-reloaded");

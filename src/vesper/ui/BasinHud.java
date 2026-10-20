@@ -40,6 +40,8 @@ public class BasinHud{
     private final Seq<Notice> announcements = new Seq<>();
     private float announceUntil;
     static final float announceSeconds = 4.5f, recordSeconds = 9f;
+    /** Characters per line of an announcement (the game's announcement never wraps: a long record ran off the screen). */
+    static final int noticeWidth = 64;
 
     public BasinHud(){
         Events.on(ClientLoadEvent.class, e -> build());
@@ -70,6 +72,31 @@ public class BasinHud{
     }
 
     /** Nothing on screen or waiting: a dialog opened now covers no announcement. */
+    /** Breaks every line of a text at word boundaries so no line shows more than {@code width} characters (colour tags not counted). */
+    static String wrap(String text, int width){
+        StringBuilder out = new StringBuilder();
+        String[] lines = text.split("\n", -1);
+        for(int i = 0; i < lines.length; i++){
+            if(i > 0) out.append('\n');
+            int visible = 0;
+            boolean first = true;
+            for(String word : lines[i].split(" ")){
+                int length = Strings.stripColors(word).length();
+                if(!first && visible + 1 + length > width){
+                    out.append('\n');
+                    visible = 0;
+                }else if(!first){
+                    out.append(' ');
+                    visible++;
+                }
+                out.append(word);
+                visible += length;
+                first = false;
+            }
+        }
+        return out.toString();
+    }
+
     public boolean quiet(){
         return announcements.isEmpty() && Time.globalTime >= announceUntil;
     }
@@ -263,7 +290,7 @@ public class BasinHud{
 
         if(!announcements.isEmpty() && Time.globalTime >= announceUntil){
             Notice next = announcements.remove(0);
-            ui.announce(next.text, next.seconds);
+            ui.announce(wrap(next.text, noticeWidth), next.seconds);
             announceUntil = Time.globalTime + next.seconds * 60f;
         }
 

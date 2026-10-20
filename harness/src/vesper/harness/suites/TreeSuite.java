@@ -94,6 +94,11 @@ public class TreeSuite implements VesperHarness.Suite{
                 && !b.techNode.objectives.contains(o -> o instanceof Research r && r.content == resonanceCore)) && containmentField.techNode.parent == resonanceDynamo.techNode, "");
             h.check("tree: the three Chapter One maps do not allow the resonance industry (their block lists are unchanged)", Seq.with("first-awakening", "resonance-fault", "buried-foundry")
                 .allMatch(f -> shipped(f) != null && !allows(shipped(f), resonanceDynamo) && !allows(shipped(f), containmentField)), "");
+            h.check("tree: the cargo unloader sits in the logistics branch and opens with the resonance industry (free, once The Buried Foundry is secured)",
+                cargoUnloader.techNode != null && cargoUnloader.techNode.parent == cargoRouter.techNode && cargoUnloader.techNode.requirements.length == 0
+                && waitsOn(cargoUnloader.techNode, VSectors.buriedFoundry), "");
+            h.check("tree: no Chapter One map allows the cargo unloader (their missions are unchanged)", Seq.with("first-awakening", "resonance-fault", "buried-foundry")
+                .allMatch(f -> shipped(f) != null && !allows(shipped(f), cargoUnloader)), "");
             //research costs: only what First Awakening's own blocks produce, and nothing a node needs comes after it
             ObjectSet<Item> early = ObjectSet.with(ferroprism, conductiveScrap, vitreousCarbon, structuralAlloy, recoveredCircuit);
             Seq<TechNode> paid = nodes.select(n -> n.requirements.length > 0);
@@ -106,7 +111,8 @@ public class TreeSuite implements VesperHarness.Suite{
             //the blocks stay out of other planets' campaigns, never out of custom games
             h.check("visibility: buildable Vesper blocks use the Vesper-only visibility", Seq.with(start).allMatch(b -> b.buildVisibility == VBlocks.vesperOnly)
                 && surveyRig.buildVisibility == VBlocks.vesperOnly && ancientPlatform.buildVisibility == VBlocks.vesperOnly && coreFoothold.buildVisibility == BuildVisibility.editorOnly
-                && resonanceDynamo.buildVisibility == VBlocks.vesperOnly && containmentField.buildVisibility == VBlocks.vesperOnly, "");
+                && resonanceDynamo.buildVisibility == VBlocks.vesperOnly && containmentField.buildVisibility == VBlocks.vesperOnly
+                && cargoUnloader.buildVisibility == VBlocks.vesperOnly, "");
 
             //texts
             Fi bundles = mods.getMod("vesper").root.child("bundles");

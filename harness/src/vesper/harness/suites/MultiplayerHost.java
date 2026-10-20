@@ -6,6 +6,7 @@ import arc.func.*;
 import arc.struct.*;
 import arc.util.*;
 import mindustry.content.*;
+import mindustry.core.*;
 import mindustry.core.GameState.*;
 import mindustry.game.*;
 import mindustry.gen.*;
@@ -32,7 +33,10 @@ import static vesper.content.VItems.*;
  * into the reactor, igniting it, switching a stabilizer) through the normal network calls. First Awakening covers
  * the 0.2 mission; Resonance Fault covers the planetary response (stabilizers, pulses) and its own victory; The
  * Buried Foundry covers industrial archaeology (surveys, two clients choosing at once, a client restoring, salvage
- * paid once across a disconnect and a save, a map change mid-survey, the archive's unlock and the victory).
+ * paid once across a disconnect and a save, a map change mid-survey, the archive's unlock and the victory). Resonance
+ * Works covers the resonance industry; the logistics world the cargo unloader; the relay world Deep Signal's network
+ * (a start refused and one accepted, a relay switched off and on by different clients, a disconnect and a save in the
+ * middle of the synchronization, its completion).
  */
 public class MultiplayerHost implements VesperHarness.Suite{
     public static final String packet = "vesper-mp";
@@ -49,6 +53,7 @@ public class MultiplayerHost implements VesperHarness.Suite{
     /** Fixture: while >= 0 the server holds the activity surge here (to reach the pulse level quickly). */
     float holdShock = -1f;
     boolean holding;
+    int syncEvents;
     /** Bottom-left tiles of the test stabilizer and extractors near the Resonance Fault core (sheltered crystal vein). */
     public static final int stabilizerX = 24, stabilizerY = 22;
     public static final int[][] faultExtractors = {{31, 25}, {33, 25}, {33, 27}}, faultSinks = {{30, 25}, {35, 25}, {35, 27}};
@@ -61,6 +66,7 @@ public class MultiplayerHost implements VesperHarness.Suite{
             Events.run(EventType.Trigger.update, () -> {
                 if(holdShock >= 0f && Vesper.activity.active()) Vesper.activity.shock = holdShock;
             });
+            Events.on(vesper.world.SignalTerminal.SyncEvent.class, e -> syncEvents++);
         }
         s.run(() -> {
             //the harness keeps the world after game over (no map rotation), so the victory and defeat checks can follow
@@ -590,6 +596,106 @@ public class MultiplayerHost implements VesperHarness.Suite{
         ask(h, s, "unloader-rejoined");
         expect(h, s, "mp: the reconnected client sees the filter and the server's count", a -> a.get("unloaderItem").equals(resonanceCore.name)
             && a.get("logisticsBurned").equals(String.valueOf(LogisticsSuite.dynamo().coresBurned)));
+
+        // --- 0.7: Deep Signal's network, in the purpose-built relay world (another map change)
+        s.run(() -> {
+            syncEvents = 0;
+            WorldReloader reloader = new WorldReloader();
+            reloader.begin();
+            Rules rules = new Rules();
+            rules.waves = false;
+            rules.waveTimer = false;
+            rules.canGameOver = false;
+            rules.loadout.clear();
+            rules.tags.put(FirstAwakening.tagScenario, DeepSignal.scenarioId);
+            rules.tags.put(vesper.systems.PlanetaryActivity.tagEnabled, "true");
+            rules.tags.put(vesper.world.AncientSite.tagEnabled, "true");
+            world.loadGenerator(DeepSignalSuite.width, DeepSignalSuite.height, DeepSignalSuite::generate);
+            state.rules = rules;
+            logic.play();
+            reloader.end();
+        });
+        s.until("mp: both clients follow the change to the relay world", () -> Groups.player.count(p -> p.unit() != null && !p.dead()) >= 2, 120f, null);
+        s.wait(1f);
+        //test setup: the survey done, every relay's dynamo fuelled, two relays with cores (the third without)
+        s.run(() -> {
+            DeepSignalSuite.terminal().investigate(1f);
+            for(int[] r : DeepSignalSuite.relays) DeepSignalSuite.feed(world.build(r[0] - 2, r[1] + 1), resonanceCore, 40);
+            DeepSignalSuite.node(0).handleStack(resonanceCore, 10, null);
+            DeepSignalSuite.node(1).handleStack(resonanceCore, 10, null);
+            for(int i = 0; i < 3; i++) NetServer.syncBuilding(DeepSignalSuite.node(i));
+            NetServer.syncBuilding(DeepSignalSuite.terminal());
+        });
+        s.wait(2f);
+        s.run(() -> send(first(), "deep-start"));
+        s.wait(2f);
+        s.check("mp: a client's start with a relay still starved is refused by the server", () -> DeepSignalSuite.terminal().syncState == vesper.world.SignalTerminal.SyncState.idle,
+            DeepSignalSuite::terminalState);
+        ask(h, s, "deep-refused");
+        expect(h, s, "mp: both clients see the terminal idle and the third relay starved", a -> a.get("deep").equals("true") && a.get("terminal").equals("idle")
+            && a.get("relays").equals("operational,operational,starved"));
+        s.run(() -> DeepSignalSuite.node(2).handleStack(resonanceCore, 10, null));
+        s.wait(1f);
+        s.run(() -> send(second(), "deep-start"));
+        s.until("mp: the other client starts the synchronization; the server applies it", () -> DeepSignalSuite.terminal().syncState == vesper.world.SignalTerminal.SyncState.syncing,
+            15f, DeepSignalSuite::terminalState);
+        s.wait(5f);
+        ask(h, s, "deep-syncing");
+        expect(h, s, "mp: both clients see the synchronization running, near the server's progress, every relay in sync", a -> a.get("terminal").equals("syncing")
+            && Math.abs(Strings.parseFloat(a.get("progress"), -1f) - DeepSignalSuite.terminal().progress) < 0.04f && a.get("relays").equals("synced,synced,synced"));
+        s.run(() -> send(first(), "deep-node-off:1"));
+        s.until("mp: a client switches a relay off; the server interrupts the synchronization", () -> !DeepSignalSuite.node(1).online
+            && DeepSignalSuite.terminal().interrupted > 0f, 15f, DeepSignalSuite::terminalState);
+        s.wait(1f);
+        ask(h, s, "deep-interrupted");
+        expect(h, s, "mp: both clients see the relay interrupted (switched off) and the terminal interrupted", a -> a.get("relays").equals("synced,interrupted,synced")
+            && a.get("interrupted").equals("true"));
+        s.run(() -> send(second(), "deep-node-on:1"));
+        s.until("mp: the other client switches it back on; the synchronization resumes", () -> DeepSignalSuite.node(1).online && DeepSignalSuite.terminal().interrupted == 0f,
+            15f, DeepSignalSuite::terminalState);
+        s.run(() -> send(second(), "disconnect"));
+        s.until("mp: a client drops out during the synchronization", () -> Groups.player.size() == 1, 30f, null);
+        s.until("mp: it comes back", () -> Groups.player.count(p -> p.unit() != null && !p.dead()) >= 2, 120f, null);
+        s.wait(2f);
+        ask(h, s, "deep-rejoined");
+        expect(h, s, "mp: the reconnected client sees the server's synchronization", a -> a.get("terminal").equals("syncing")
+            && Math.abs(Strings.parseFloat(a.get("progress"), -1f) - DeepSignalSuite.terminal().progress) < 0.04f && a.get("relays").equals("synced,synced,synced"));
+        //save and load on the server in the middle of the synchronization
+        s.run(() -> {
+            Fi file = h.out.child("mp-deep.msav");
+            SaveIO.save(file);
+            savedSnapshot = DeepSignalSuite.saved();
+            WorldReloader reloader = new WorldReloader();
+            reloader.begin();
+            SaveIO.load(file);
+            state.rules.sector = null;
+            state.set(State.playing);
+            reloader.end();
+            h.line("mp: the relay world saved and reloaded on the server: " + savedSnapshot);
+        });
+        s.check("mp: the synchronization and every relay survive save and load on the server", () -> DeepSignalSuite.saved().equals(savedSnapshot),
+            () -> "before " + savedSnapshot + ", after " + DeepSignalSuite.saved());
+        s.until("mp: both clients are back in the relay world", () -> Groups.player.count(p -> p.unit() != null && !p.dead()) >= 2, 120f, null);
+        s.wait(2f);
+        ask(h, s, "deep-reloaded");
+        expect(h, s, "mp: after the reload both clients see the synchronization where the server has it", a -> a.get("terminal").equals("syncing")
+            && Math.abs(Strings.parseFloat(a.get("progress"), -1f) - DeepSignalSuite.terminal().progress) < 0.04f);
+        //the completion with both clients connected (test setup: the progress is advanced)
+        s.run(() -> {
+            DeepSignalSuite.terminal().progress = 0.995f;
+            NetServer.syncBuilding(DeepSignalSuite.terminal());
+        });
+        s.until("mp: the server completes the synchronization and declares Deep Signal won, once", () -> h.lastWinner == state.rules.defaultTeam
+            && DeepSignalSuite.terminal().syncState == vesper.world.SignalTerminal.SyncState.synced, 30f, DeepSignalSuite::terminalState);
+        s.wait(2f);
+        s.check("mp: the network was synchronized once on the server", () -> syncEvents == 1, () -> syncEvents + " sync events");
+        ask(h, s, "deep-victory");
+        expect(h, s, "mp: both clients see the network synchronized and the victory", a -> a.get("terminal").equals("synced") && a.get("deepVictory").equals("true")
+            && a.get("gameover").equals("true") && a.get("won").equals("true"));
+        s.run(() -> {
+            for(Player p : Groups.player) Call.clientPacketReliable(p.con, packet, "shot:mp-deep-victory");
+        });
+        s.wait(2f);
 
         s.run(() -> {
             for(Player p : Groups.player) Call.clientPacketReliable(p.con, packet, "bye");

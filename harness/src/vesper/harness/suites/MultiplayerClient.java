@@ -104,6 +104,15 @@ public class MultiplayerClient implements VesperHarness.Suite{
         }else if(data.equals("unloader-cores")){
             h.line("mp client " + name + ": setting the unloader to take resonance cores");
             if(world.build(13, 11) instanceof mindustry.world.blocks.storage.Unloader.UnloaderBuild u) u.configure(resonanceCore);
+        }else if(data.equals("deep-start")){
+            h.line("mp client " + name + ": asking the terminal to start the synchronization");
+            if(DeepSignalSuite.terminal() != null) DeepSignalSuite.terminal().configure(true);
+        }else if(data.startsWith("deep-node-")){
+            //deep-node-<on|off>:<relay index>, as a player's tap on the relay
+            boolean on = data.startsWith("deep-node-on");
+            int i = Strings.parseInt(data.substring(data.indexOf(':') + 1), 0);
+            h.line("mp client " + name + ": switching relay " + i + (on ? " on" : " off"));
+            if(world.build(DeepSignalSuite.relays[i][0] + 1, DeepSignalSuite.relays[i][1] + 1) instanceof SignalNode.NodeBuild n) n.configure(on);
         }else if(data.equals("field-off") || data.equals("field-on")){
             h.line("mp client " + name + ": switching the field " + (data.endsWith("on") ? "on" : "off"));
             if(MultiplayerHost.mpField() != null) MultiplayerHost.mpField().configure(data.endsWith("on"));
@@ -156,7 +165,21 @@ public class MultiplayerClient implements VesperHarness.Suite{
             + ";fieldOverloaded=" + (MultiplayerHost.mpField() != null && MultiplayerHost.mpField().overloaded())
             + ";worksVictory=" + Vesper.works.victory + ";worksObjective=" + (Vesper.works.current() == null ? "done" : Vesper.works.current().key)
             + ";unloaderItem=" + (world.build(13, 11) instanceof mindustry.world.blocks.storage.Unloader.UnloaderBuild u && u.sortItem != null ? u.sortItem.name : "-")
-            + ";logisticsBurned=" + (Worlds.at(18, 10, 3) instanceof vesper.world.ResonanceDynamo.ResonanceDynamoBuild d ? d.coresBurned : -1);
+            + ";logisticsBurned=" + (Worlds.at(18, 10, 3) instanceof vesper.world.ResonanceDynamo.ResonanceDynamoBuild d ? d.coresBurned : -1)
+            + ";deep=" + Vesper.deep.active() + ";" + deepView();
+    }
+
+    /** The relay world as this client sees it: the terminal's state and progress, every relay's state, the victory. */
+    static String deepView(){
+        var t = DeepSignalSuite.terminal();
+        if(t == null || !Vesper.deep.active()) return "terminal=-";
+        StringBuilder relays = new StringBuilder();
+        for(int i = 0; i < 3; i++){
+            var n = world.build(DeepSignalSuite.relays[i][0] + 1, DeepSignalSuite.relays[i][1] + 1);
+            relays.append(i == 0 ? "" : ",").append(n instanceof SignalNode.NodeBuild node ? node.state().name() : "-");
+        }
+        return "terminal=" + t.syncState.name() + ";progress=" + Strings.fixed(t.progress, 3) + ";interrupted=" + (t.interrupted > 0f) + ";relays=" + relays
+            + ";deepVictory=" + Vesper.deep.victory + ";deepCompleted=" + Vesper.deep.completed;
     }
 
     /** Cores this client has put into the dynamo so far: what it holds now plus what it burned. */

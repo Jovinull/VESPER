@@ -427,3 +427,83 @@ def works_relay(alt="a"):
 
     glow = glow_layer(n, R.circle(cx, cy, 4) | R.ring(cx, cy, 11, 9.5) | posts, "teal", 5, falloff=3, alpha=(110, 60, 30), core_alpha=150)
     return {"": base, "-rotator": rot, "-glow": glow}
+
+
+def signal_node(alt="a"):
+    """Nó de sinal 3x3 (0.7): a relay of the deep network: a worn octagonal plinth, four conduit shoes on the axes
+    (where the signal leaves), a crystal emitter in a deep socket; the emitter crown (-rotator) turns while it works
+    and the conduits and the crystal light up (-glow)."""
+    n, cx, cy = 96, 48, 48
+    base = R.Canvas(n, n)
+    plinth = R.regular(cx, cy, 46, 8, 22.5) & R.rect(0, 0, n, n)
+    base.plate(plinth, "dark", 3, bevel=2, hi=1, lo=2, rim=1)
+    K.wear(base, plinth, "signal-node", 0.1)
+    lines = set()
+    for k in range(4):
+        shoe = R.rot90(R.chamfer(40, 3, 16, 12, 3), n, k)
+        K.raised(base, shoe, "dark", 5, bevel=1, shadow=2)
+        slot = R.rot90(R.rect(46, 5, 4, 8), n, k)
+        base.fill(slot, "teal", 2)
+        lines |= slot
+        K.trace(base, [tuple(q) for q in sorted(R.rot90({(48, 15), (48, 24)}, n, k))], node=False)
+    for k in range(4):
+        a = math.radians(45 + 90 * k)
+        px, py = cx + 30 * math.cos(a), cy - 30 * math.sin(a)
+        K.raised(base, R.regular(px, py, 5, 6, 0), "steel", 3, bevel=1)
+        K.stud(base, int(px), int(py), "steel", 6)
+    K.raised(base, R.circle(cx, cy, 21), "dark", 4, bevel=2, shadow=2)
+    K.well(base, R.circle(cx, cy, 15), "dark", 1, bevel=1, cast=1)
+    core = R.regular(cx, cy, 8, 6, 30)
+    left, upper = R.rect(0, 0, cx, n), R.rect(0, 0, n, cy)
+    base.facets([(core & left - upper, (-1, -0.6)), (core & left & upper, (-0.6, 1)),
+                 (core & upper - left, (0.7, 1)), (core - left - upper, (1, -0.5))], "teal", 2, 1)
+
+    rot = R.Canvas(n, n)
+    crown = R.ring(cx, cy, 19, 15.5)
+    K.plate(rot, crown, "steel", 3, bevel=1)
+    for k in range(3):
+        a = 2 * math.pi * k / 3
+        fin = R.thick(cx + 12 * math.cos(a), cy + 12 * math.sin(a), cx + 21 * math.cos(a), cy + 21 * math.sin(a), 4)
+        K.plate(rot, fin, "dark", 5, bevel=1)
+        rot.set((int(cx + 21 * math.cos(a)), int(cy + 21 * math.sin(a))), "teal", 5)
+
+    glow = glow_layer(n, R.circle(cx, cy, 4) | lines, "teal", 5, falloff=3, alpha=(110, 60, 30), core_alpha=160)
+    return {"": base, "-rotator": rot, "-glow": glow}
+
+
+def signal_terminal(alt="a"):
+    """Terminal de controle 4x4 (0.7): the deep network's control console: a heavy ancient frame, four conduits
+    running out to its edges (towards the relays), glyph panels on three sides and a round display well in the
+    middle; the panels and the display light up (-glow) once it is surveyed and while it synchronizes."""
+    n, cx, cy = 128, 64, 64
+    base = R.Canvas(n, n)
+    frame = R.chamfer(2, 2, n - 4, n - 4, 14)
+    base.plate(frame, "dark", 3, bevel=2, hi=1, lo=2, rim=1)
+    K.wear(base, frame, "signal-terminal", 0.1)
+    K.cracks(base, "signal-terminal", (18, 100), 10)
+    conduits = set()
+    for k in range(4):
+        duct = R.rot90(R.rect(58, 4, 12, 30), n, k)
+        K.raised(base, duct, "dark", 4, bevel=1, shadow=2)
+        line = R.rot90(R.rect(62, 6, 4, 26), n, k)
+        base.fill(line, "teal", 2)
+        conduits |= line
+    panels = set()
+    for k in (1, 2, 3):
+        pad = R.rot90(R.chamfer(14, 14, 30, 22, 3), n, k)
+        K.raised(base, pad, "dark", 5, bevel=1, shadow=2)
+        screen = R.rot90(R.rect(17, 17, 24, 16), n, k)
+        base.cavity(screen, "dark", 1, bevel=1)
+        for gx in range(19, 39, 5):
+            glyph = R.rot90(R.rect(gx, 21, 3, 2) | R.rect(gx + 1, 25, 2, 3), n, k)
+            base.fill(glyph, "teal", 3)
+            panels |= glyph
+    for (x, y) in ((16, 110), (110, 110), (110, 16), (16, 16)):
+        K.lamp(base, x, y, "amber", size=2)
+    K.raised(base, R.circle(cx, cy, 26), "dark", 4, bevel=2, shadow=2)
+    base.fill(R.ring(cx, cy, 23, 21.5), "steel", 4)
+    K.well(base, R.circle(cx, cy, 19), "dark", 1, bevel=1, cast=1)
+    K.glyph_ring(base, cx, cy, 15, "teal", 3, gaps=8, gap_len=0.3)
+    base.dome(R.circle(cx, cy, 7), "teal", 2, 5)
+    glow = glow_layer(n, R.circle(cx, cy, 5) | R.ring(cx, cy, 15.5, 14.5) | conduits | panels, "teal", 5, falloff=3, alpha=(110, 60, 30), core_alpha=150)
+    return {"": base, "-glow": glow}

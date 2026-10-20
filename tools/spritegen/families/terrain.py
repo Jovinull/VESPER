@@ -238,6 +238,102 @@ def machine_basalt_wall():
     return {key: _ridge(key) for key in ("1", "2", "-large")}
 
 
+# ------------------------------------------------------------------------------------------ the Underworks (0.7)
+
+def _panels(c, ramp, lo, hi, seed):
+    """Dark hull panels on a 16 px grid (four per tile, borders on the grid so tiles join seamlessly)."""
+    for y in range(N):
+        for x in range(N):
+            v = R.fbm(x, y, N, seed, (16, 8, 4))
+            c.set((x, y), ramp, hi if v > 0.58 else lo)
+    for k in (0, 16):
+        for t in range(N):
+            c.shade({(t, k)}, 1)
+            c.shade({(t, k + 15)}, -1)
+            c.shade({(k + 15, t)}, 1)
+            c.shade({(k, t)}, -1)
+
+
+def hull_plating(variant):
+    """Hull plating: the Underworks' own floor, darker and colder than the Basin's rusted plating, laid as panels."""
+    c = R.Canvas(N, N)
+    _panels(c, "dark", 3, 4, 53)
+    for p in ((3, 3), (19, 3), (3, 19), (19, 19)):
+        c.set(p, "steel", 2)
+    if variant == 1:
+        # a vent grille in one panel
+        K_vent = R.rect(20, 20, 8, 8)
+        c.cavity(K_vent, "dark", 1, bevel=1)
+        for y in range(21, 27, 2):
+            c.fill(R.rect(21, y, 6, 1), "dark", 3)
+    elif variant == 3:
+        # a scorched panel: the builders' machines ran hot here
+        burn = _interior(R.circle(9.5, 23.5, 4.5), 3)
+        c.fill(burn, "dark", 2)
+        c.fill(_interior(R.circle(9.5, 23.5, 2), 3), "rust", 1)
+    return c
+
+
+def signal_channel(variant):
+    """Signal channel: hull panels over a lattice of resonance conduits (a lit line along the middle of every
+    tile, both ways), so channels read as one network in any direction. The floor emits a faint light in game."""
+    c = R.Canvas(N, N)
+    _panels(c, "dark", 2, 3, 59)
+    for t in range(N):
+        for q in (15, 16):
+            c.set((t, q), "dark", 1)
+            c.set((q, t), "dark", 1)
+    lit = 4 if variant != 2 else 3
+    for t in range(N):
+        c.set((t, 15), "teal", lit)
+        c.set((15, t), "teal", lit)
+    c.set((15, 15), "teal", 6)
+    if variant == 3:
+        # a break in the conduit, sparking
+        for t in range(6, 11):
+            c.set((t, 15), "dark", 1)
+        c.set((11, 14), "teal", 6)
+    return c
+
+
+def bulkhead_wall():
+    """Bulkhead: the walls the builders raised between galleries, riveted steel panels brighter than the floor so
+    impassable metal reads at a glance; the large variant is a sealed blast door in a hazard frame."""
+    out = {}
+    for key in ("1", "2", "-large"):
+        n = 64 if key == "-large" else 32
+        c = R.Canvas(n, n)
+        for y in range(n):
+            for x in range(n):
+                v = R.fbm(x % N, y % N, N, 61, (16, 8, 4))
+                c.set((x, y), "steel", 4 if v > 0.68 else 3)
+        for k in range(0, n, 16):
+            for t in range(n):
+                c.shade({(t, k)}, 1)
+                c.shade({(t, k + 15)}, -2)
+                c.shade({(k + 15, t)}, 1)
+                c.shade({(k, t)}, -2)
+        for x in range(4, n, 16):
+            for y in range(4, n, 16):
+                c.set((x, y), "steel", 6)
+                c.set((x + 7, y), "steel", 6)
+        if key == "2":
+            c.fill(R.rect(6, 20, 20, 3), "rust", 2)
+            c.fill(R.rect(8, 21, 16, 1), "rust", 3)
+        if key == "-large":
+            door = R.rect(10, 10, 44, 44)
+            for p in door:
+                k = (p[0] + p[1]) % 8
+                c.set(p, "amber" if k < 4 else "dark", 3 if k < 4 else 2)
+            inner = R.rect(14, 14, 36, 36)
+            c.plate(inner, "steel", 3, bevel=2, hi=1, lo=2, rim=1)
+            c.fill(R.rect(31, 14, 2, 36), "dark", 1)
+            c.set((28, 31), "teal", 4)
+            c.set((35, 31), "teal", 4)
+        out[key] = c
+    return out
+
+
 FAMILIES = {
     "machine-basalt": machine_basalt,
     "scrap-soil": scrap_soil,

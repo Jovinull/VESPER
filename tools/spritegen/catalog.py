@@ -58,6 +58,11 @@ for key, label, label_pt in (("machine-basalt", "Machine Basalt", "Basalto Mecâ
 # --- static wall: the basalt ridges that shape the map (2 variants + a 2x2 large variant)
 add("machine-basalt-wall", "terrain", "blocks/environment", "wall", terrain.machine_basalt_wall, 1, "Basalt Ridge", "Crista de Basalto")
 
+# --- the Underworks (0.7): the built floors and walls of Deep Signal
+add("hull-plating", "terrain", "blocks/environment", "floor", _variants(terrain.hull_plating, 3), 1, "Hull Plating", "Chapeamento de Casco")
+add("signal-channel", "terrain", "blocks/environment", "floor", _variants(terrain.signal_channel, 3), 1, "Signal Channel", "Canal de Sinal")
+add("bulkhead-wall", "terrain", "blocks/environment", "wall", terrain.bulkhead_wall, 1, "Bulkhead", "Antepara")
+
 # --- ores: 4 resources x 2 variants
 for key, label, label_pt in (("ore-ferroprism", "Ferroprism Ore", "Minério de Ferroprisma"),
                              ("ore-conductive-scrap", "Conductive Scrap Deposit", "Depósito de Sucata Condutora"),
@@ -139,6 +144,10 @@ add("resonance-dynamo", "industry", "blocks/power", "block", industry.resonance_
     note="0.6: player frame and copper transformers around a sealed core chamber; the -ring turns with the load.")
 add("containment-field", "special", "blocks/special", "block", special.containment_field, 2, "Containment Field", "Campo de Contenção",
     note="0.6: a player-built emitter on the stabilizer's ring language, with prongs and a core cartridge slot.")
+add("signal-node", "special", "blocks/ruins", "block", special.signal_node, 3, "Signal Node", "Nó de Sinal",
+    note="0.7: a relay of the deep network; the ancient plinth and trace language with conduit shoes on the axes.")
+add("signal-terminal", "special", "blocks/ruins", "block", special.signal_terminal, 4, "Control Terminal", "Terminal de Controle",
+    note="0.7: the deep network's console; conduits run out to its edges, glyph panels light up when it is surveyed.")
 add("works-relay", "special", "blocks/ruins", "block", special.works_relay, 3, "Works Relay", "Relé das Obras",
     note="0.6: the Resonance Works map's ancient relay; the ancient hull and trace language of the reactor and the ruins.")
 

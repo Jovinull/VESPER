@@ -143,6 +143,7 @@ public class VesperHarness extends Mod{
                 case "control-opportunist" -> new ControlPlaySuite("opportunist");
                 case "control-opportunist-slow" -> new ControlPlaySuite("opportunist-slow");
                 case "control-economic" -> new ControlPlaySuite("economic");
+                case "control-ui" -> new ControlUiSuite();
                 case "defeat" -> new DefeatSuite();
                 case "gallery" -> new GallerySuite();
                 case "ui" -> new UiSuite();

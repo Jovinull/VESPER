@@ -105,13 +105,14 @@ public class Ledger{
         return value > was + 0.0001f;
     }
 
-    /** Resonance cores burned by the relays, the resonance dynamos and the containment fields. */
+    /** Resonance cores burned by the relays, the resonance dynamos, the containment fields and the central controller's two buses. */
     public static int coresBurned(){
         int sum = 0;
         for(Building b : state.rules.defaultTeam.data().buildings){
             if(b instanceof NodeBuild n) sum += n.coresSpent;
             else if(b instanceof ResonanceDynamoBuild d) sum += d.coresBurned;
             else if(b instanceof FieldBuild f) sum += f.coresSpent;
+            else if(b instanceof ProtocolController.ControllerBuild c) sum += c.recoveryCores + c.lockCores;
         }
         return sum;
     }

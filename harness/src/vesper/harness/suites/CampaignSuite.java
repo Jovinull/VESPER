@@ -41,6 +41,13 @@ import static vesper.content.VBlocks.*;
  * nothing, and it is abandoned, replayed and lost without losing what it gave.</li>
  * <li>campaign-legacy: a profile that finished Chapter One in 0.6 (a fixture, see runCampaign -PcampaignSeed) finds
  * Deep Signal open at its first start, without replaying anything, and can launch to it.</li>
+ * <li>campaign-7: Central Control, Chapter Two's second sector, opened by Deep Signal's capture, launched from the
+ * planet map and played to its native capture (the balanced strategy): its records, the hook to what lies below,
+ * Chapter One untouched, nothing marking Chapter Two complete.</li>
+ * <li>campaign-8: after a restart, Central Control still secured; it reloads reactivated and quiet, a duplicate
+ * capture changes nothing, and it is abandoned, replayed and lost without losing what it gave.</li>
+ * <li>campaign-legacy-0.7: a profile that captured Deep Signal in 0.7 (a fixture made by 0.7's own campaign) finds
+ * Central Control open at its first start, without replaying anything, and can launch to it.</li>
  * </ul>
  */
 public class CampaignSuite implements VesperHarness.Suite{
@@ -72,10 +79,14 @@ public class CampaignSuite implements VesperHarness.Suite{
             case "campaign-5" -> deepSector(h, s);
             case "campaign-6" -> afterDeep(h, s);
             case "campaign-legacy" -> legacyProfile(h, s);
+            case "campaign-7" -> controlSector(h, s);
+            case "campaign-8" -> afterControl(h, s);
+            case "campaign-legacy-0.7" -> legacyDeep(h, s);
             case "campaign-look" -> look(h, s);
             case "campaign-ui-a" -> uiAfterFirst(h, s);
             case "campaign-ui-b" -> uiAfterChapter(h, s);
             case "campaign-ui-c" -> uiAfterDeep(h, s);
+            case "campaign-ui-d" -> uiAfterControl(h, s);
             case "campaign-mp-host" -> mpHost(h, s);
             case "campaign-mp-client" -> mpGuest(h, s);
             default -> h.fail("campaign: unknown phase", phase);
@@ -522,6 +533,184 @@ public class CampaignSuite implements VesperHarness.Suite{
         });
     }
 
+    // --- campaign-7: Central Control, Chapter Two's second sector
+
+    void controlSector(VesperHarness h, Script s){
+        SectorPreset cc = VSectors.centralControl;
+        s.check("restart: Deep Signal secured, Central Control open and never played, Chapter One complete", () -> Chapter.secured(VSectors.deepSignal) && cc.unlocked()
+            && !cc.sector.hasSave() && !Chapter.secured(cc) && Chapter.complete(), () -> chapterSettings());
+        s.run(() -> settingsBefore = chapterSettings());
+        s.run(() -> ui.planet.show());
+        s.wait(1f);
+        s.run(() -> {
+            click(h, ui.planet, VPlanets.vesper.localizedName);
+            ui.planet.lookAt(cc.sector);
+            ui.planet.selectSector(cc.sector);
+        });
+        s.wait(2f);
+        h.shot("campaign-30-central-control-open", 0, 0, 1f, true);
+        s.run(() -> click(h, ui.planet, Core.bundle.get("sectors.launch")));
+        s.wait(1f);
+        s.check("launch: the native launch dialog to Central Control", () -> Core.scene.getDialog() != null && UiSuite.dialogText().contains(Core.bundle.get("launch.text")),
+            () -> UiSuite.dialogText());
+        s.run(() -> {
+            itemsBefore = chapterStock().toString();
+            click(h, Core.scene.getDialog(), Core.bundle.get("launch.text"));
+        });
+        landing(h, s, cc, "central-control");
+        s.check("launch: it cost the secured sectors nothing", () -> chapterStock().toString().equals(itemsBefore), () -> "before " + itemsBefore + ", after " + chapterStock());
+        s.check("landing: Central Control lands with its own loadout", () -> state.rules.defaultTeam.core() != null && state.rules.defaultTeam.core().items.get(VItems.resonanceCore) == 6
+            && state.rules.defaultTeam.core().items.get(VItems.ferroprism) == 1500, () -> "");
+        h.shot("campaign-31-central-control-landed", 70, 14, 2f, true);
+
+        new ControlPlaySuite("balanced", true).define(h, s);
+
+        captured(h, s, cc);
+        s.check("capture: Central Control's records were found (the two protocols, the arbitration log, the partial reactivation)", () -> Chapter.Record.controlProtocols.found()
+            && Chapter.Record.restoredWings.found() && Chapter.Record.partialReactivation.found(), () -> chapterSettings());
+        s.check("capture: Chapter One is untouched, Deep Signal still secured, and nothing marks Chapter Two complete", () -> Chapter.complete() && Chapter.sectors.size == 3
+            && Chapter.sectors.allMatch(Chapter::secured) && Chapter.secured(VSectors.deepSignal) && !Core.settings.has("vesper-campaign-chapter-two"), () -> chapterSettings());
+        s.waitFor(() -> UiSuite.dialogText().contains(Core.bundle.format("vesper.secured.title", cc.localizedName)), 60f);
+        s.check("capture: the dialog shows what Central Control gave and the depth below, which does not open", () -> UiSuite.dialogText().contains(Core.bundle.format("vesper.secured.title", cc.localizedName))
+            && UiSuite.dialogText().contains(Chapter.Record.partialReactivation.title()) && UiSuite.dialogText().contains(Core.bundle.get("vesper.secured.central-control")),
+            () -> UiSuite.dialogText());
+        h.shot("campaign-32-central-control-secured", 70, 50, 2f, true);
+        s.run(() -> click(h, Core.scene.getDialog(), Core.bundle.get("continue")));
+        s.wait(0.5f);
+        saveAndQuit(h, s);
+    }
+
+    // --- campaign-8: what Central Control keeps, and what cannot break it
+
+    void afterControl(VesperHarness h, Script s){
+        SectorPreset cc = VSectors.centralControl;
+        s.check("restart: Central Control still captured and secured, its records kept, Deep Signal and Chapter One as before", () -> cc.sector.isCaptured()
+            && Chapter.secured(cc) && Chapter.Record.partialReactivation.found() && Chapter.secured(VSectors.deepSignal) && Chapter.complete(), () -> chapterSettings());
+        s.run(() -> settingsBefore = chapterSettings());
+        s.run(() -> ui.planet.show());
+        s.wait(1f);
+        s.run(() -> click(h, ui.planet, Core.bundle.get("vesper.archive")));
+        s.wait(1f);
+        h.shot("campaign-33-archive-central-control", 0, 0, 1f, true);
+        s.check("archive: Chapter Two's section lists Central Control's records", () -> UiSuite.dialogText().contains(cc.localizedName)
+            && UiSuite.dialogText().contains(Chapter.Record.partialReactivation.text()) && UiSuite.dialogText().contains(Chapter.Record.controlProtocols.title()), () -> UiSuite.dialogText());
+        s.run(() -> Core.scene.getDialog().hide());
+        s.wait(0.5f);
+        s.run(() -> {
+            captures = 0;
+            click(h, ui.planet, VPlanets.vesper.localizedName);
+            ui.planet.selectSector(cc.sector);
+        });
+        s.wait(1f);
+        s.run(() -> click(h, ui.planet, Core.bundle.get("sectors.go")));
+        s.waitFor(() -> state.isGame() && state.rules.sector == cc.sector, 60f);
+        s.run(h::freeCamera);
+        s.wait(20f);
+        s.check("re-entry: Central Control reloads reactivated, won and quiet", () -> Vesper.central.active() && Vesper.central.victory && !state.rules.waves
+            && ControlPlaySuite.controller() != null && ControlPlaySuite.controller().sequence == vesper.world.ProtocolController.Sequence.complete && captures == 0 && !state.gameOver,
+            () -> "victory " + Vesper.central.victory + ", waves " + state.rules.waves + ", captures " + captures);
+        s.run(() -> Events.fire(new SectorCaptureEvent(cc.sector, false)));
+        s.wait(6f);
+        s.check("duplicate event: a second capture of Central Control changes nothing", () -> chapterSettings().equals(settingsBefore), () -> chapterSettings());
+        s.run(() -> {
+            if(Core.scene.getDialog() != null) Core.scene.getDialog().hide();
+        });
+        saveAndQuit(h, s);
+
+        s.run(() -> ui.planet.show());
+        s.wait(1f);
+        s.run(() -> {
+            click(h, ui.planet, VPlanets.vesper.localizedName);
+            ui.planet.selectSector(cc.sector);
+            ui.planet.abandonSectorConfirm(cc.sector, null);
+        });
+        s.wait(1f);
+        s.run(() -> click(h, Core.scene.getDialog(), Core.bundle.get("ok")));
+        s.wait(1f);
+        s.check("replay: Central Control abandoned (no base), what it gave untouched", () -> !cc.sector.hasBase() && chapterSettings().equals(settingsBefore)
+            && cc.unlocked(), () -> "base " + cc.sector.hasBase());
+        s.run(() -> {
+            ui.planet.selectSector(cc.sector);
+            click(h, ui.planet, Core.bundle.get("sectors.launch"));
+        });
+        s.wait(1f);
+        s.run(() -> click(h, Core.scene.getDialog(), Core.bundle.get("launch.text")));
+        landing(h, s, cc, "central-control");
+        s.check("replay: a fresh Central Control (controller unexplored, nothing done, its own loadout)", () -> Vesper.central.active() && Vesper.central.completed == 0
+            && !Vesper.central.victory && ControlPlaySuite.controller() != null && ControlPlaySuite.controller().siteState == vesper.world.AncientSite.SiteState.unexplored
+            && state.rules.defaultTeam.core() != null && state.rules.defaultTeam.core().items.get(VItems.resonanceCore) == 6, () -> "objectives " + Vesper.central.completed);
+        s.run(() -> state.rules.defaultTeam.cores().copy().each(c -> c.kill()));
+        s.waitFor(() -> state.gameOver, 30f);
+        s.wait(4f);
+        s.check("defeat: the replayed Central Control is lost, and nothing it gave is (records, Deep Signal, Chapter One)", () -> state.gameOver && !cc.sector.hasBase()
+            && chapterSettings().equals(settingsBefore) && Chapter.complete() && Chapter.secured(VSectors.deepSignal) && Chapter.Record.partialReactivation.found(), () -> chapterSettings());
+        s.run(() -> {
+            if(ui.restart.isShown()) ui.restart.hide();
+            ui.paused.runExitSave();
+        });
+        s.waitFor(() -> state.isMenu(), 30f);
+        s.run(() -> Worlds.play(Worlds.bundled(ContentSuite.controlName), mindustry.game.Gamemode.survival));
+        s.wait(1f);
+        s.check("custom game: Central Control as a custom game is no campaign, and its progress is unchanged", () -> !state.isCampaign() && Vesper.central.active()
+            && chapterSettings().equals(settingsBefore), () -> chapterSettings());
+        s.run(() -> {
+            logic.reset();
+            state.set(mindustry.core.GameState.State.menu);
+        });
+    }
+
+    // --- campaign-legacy-0.7: a profile that captured Deep Signal in 0.7
+
+    void legacyDeep(VesperHarness h, Script s){
+        SectorPreset cc = VSectors.centralControl;
+        s.check("0.7 profile: Chapter One complete and Deep Signal captured, as 0.7 left them", () -> Chapter.complete() && Chapter.sectors.allMatch(Chapter::secured)
+            && Chapter.secured(VSectors.deepSignal) && VSectors.deepSignal.sector.isCaptured() && Chapter.Record.centralControl.found(), () -> chapterSettings());
+        s.check("0.7 profile: Central Control is open at the first start of 0.8, with nothing replayed", () -> cc.unlocked() && !cc.sector.hasSave()
+            && !Chapter.secured(cc) && !Chapter.Record.controlProtocols.found(), () -> chapterSettings());
+        s.run(() -> settingsBefore = chapterSettings());
+        s.run(() -> ui.planet.show());
+        s.wait(1.5f);
+        s.run(() -> {
+            if(Core.scene.getDialog() != ui.planet && Core.scene.getDialog() != null) Core.scene.getDialog().hide();
+        });
+        s.wait(0.5f);
+        s.run(() -> {
+            click(h, ui.planet, VPlanets.vesper.localizedName);
+            ui.planet.lookAt(cc.sector);
+            ui.planet.selectSector(cc.sector);
+        });
+        s.wait(2f);
+        h.shot("campaign-legacy-07-01-central-control-open", 0, 0, 1f, true);
+        s.check("0.7 profile: the planet map offers the launch to Central Control", () -> button(ui.planet, Core.bundle.get("sectors.launch")) != null
+            && !button(ui.planet, Core.bundle.get("sectors.launch")).isDisabled(), () -> UiSuite.dialogText());
+        //the 0.7 Deep Signal save still loads: secured, synchronized, quiet
+        s.run(() -> {
+            ui.planet.selectSector(VSectors.deepSignal.sector);
+            click(h, ui.planet, Core.bundle.get("sectors.go"));
+        });
+        s.waitFor(() -> state.isGame() && state.rules.sector == VSectors.deepSignal.sector, 60f);
+        s.wait(5f);
+        s.check("0.7 profile: its Deep Signal save loads synchronized and won in 0.8", () -> Vesper.deep.active() && Vesper.deep.victory
+            && DeepPlaySuite.terminal() != null && DeepPlaySuite.terminal().syncState == vesper.world.SignalTerminal.SyncState.synced && !state.gameOver, () -> "");
+        saveAndQuit(h, s);
+        s.run(() -> ui.planet.show());
+        s.wait(1f);
+        s.run(() -> {
+            click(h, ui.planet, VPlanets.vesper.localizedName);
+            ui.planet.selectSector(cc.sector);
+            click(h, ui.planet, Core.bundle.get("sectors.launch"));
+        });
+        s.wait(1f);
+        s.run(() -> click(h, Core.scene.getDialog(), Core.bundle.get("launch.text")));
+        landing(h, s, cc, "central-control");
+        s.check("0.7 profile: Central Control lands fresh, with its loadout; what 0.7 left is untouched", () -> Vesper.central.active() && Vesper.central.completed == 0
+            && state.rules.defaultTeam.core().items.get(VItems.resonanceCore) == 6 && Chapter.complete() && Chapter.secured(VSectors.deepSignal), () -> chapterSettings());
+        h.shot("campaign-legacy-07-02-central-control-landed", 70, 14, 2f, true);
+        saveAndQuit(h, s);
+        s.check("0.7 profile: after leaving, Central Control has its save and the chapter is as before", () -> cc.sector.hasSave() && chapterSettings().equals(settingsBefore),
+            () -> chapterSettings());
+    }
+
     // --- campaign-legacy: a profile that finished Chapter One in 0.6
 
     void legacyProfile(VesperHarness h, Script s){
@@ -844,6 +1033,54 @@ public class CampaignSuite implements VesperHarness.Suite{
     }
 
     /** After Deep Signal: the planet map with Chapter Two's first sector secured, the archive's second section, the sector's dialog and its terminal. */
+    void uiAfterControl(VesperHarness h, Script s){
+        SectorPreset cc = VSectors.centralControl;
+        uiStart(h, s);
+        s.run(() -> ui.planet.show());
+        s.wait(1f);
+        s.run(() -> {
+            click(h, ui.planet, VPlanets.vesper.localizedName);
+            ui.planet.lookAt(cc.sector);
+            ui.planet.selectSector(cc.sector);
+        });
+        s.wait(2f);
+        uiShot(h, s, "01-central-control-secured");
+        planetLayout(h, s, "planet map after Central Control");
+        s.run(() -> click(h, ui.planet, Core.bundle.get("vesper.archive")));
+        s.wait(1f);
+        uiShot(h, s, "02-archive-central-control");
+        dialogLayout(h, s, "archive with Central Control");
+        s.check("ui " + phase + ": the archive lists Central Control's records under Chapter Two", () -> UiSuite.dialogText().contains(Core.bundle.get("vesper.chapter.two"))
+            && UiSuite.dialogText().contains(cc.localizedName) && UiSuite.dialogText().contains(Chapter.Record.partialReactivation.title()), () -> UiSuite.dialogText());
+        s.run(() -> Core.scene.getDialog().hide());
+        s.wait(0.5f);
+        s.run(() -> {
+            ui.planet.selectSector(cc.sector);
+            click(h, ui.planet, Core.bundle.get("sectors.go"));
+        });
+        s.waitFor(() -> state.isGame() && state.rules.sector == cc.sector, 60f);
+        s.wait(3f);
+        s.run(() -> Vesper.chapterUi.showSecured(cc));
+        s.wait(1f);
+        uiShot(h, s, "03-central-control-secured-dialog");
+        dialogLayout(h, s, "Central Control secured");
+        s.run(() -> Core.scene.getDialog().hide());
+        s.run(() -> {
+            var c = ControlPlaySuite.controller();
+            if(c != null){
+                h.look(c.tileX(), c.tileY(), 2.5f);
+                control.input.config.showConfig(c);
+            }
+        });
+        s.wait(1f);
+        uiShot(h, s, "04-controller-reactivated");
+        s.run(() -> {
+            control.input.config.hideConfig();
+            logic.reset();
+            state.set(mindustry.core.GameState.State.menu);
+        });
+    }
+
     void uiAfterDeep(VesperHarness h, Script s){
         SectorPreset deep = VSectors.deepSignal;
         uiStart(h, s);
@@ -953,6 +1190,13 @@ public class CampaignSuite implements VesperHarness.Suite{
     }
 
     // --- helpers
+
+    /** Items in the campaign's sectors with a base, except the one being played (what a launch from them would have to pay). */
+    static ItemSeq chapterStock(){
+        ItemSeq out = new ItemSeq();
+        for(SectorPreset p : Chapter.all()) if(p.sector.hasBase() && p.sector != state.rules.sector) out.add(p.sector.items());
+        return out;
+    }
 
     /** Items in Chapter One's sectors (what a launch from them would have to pay). */
     static ItemSeq chapterOneStock(){

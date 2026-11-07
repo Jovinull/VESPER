@@ -190,7 +190,7 @@ tasks.register("runCampaign"){
     val harnessFile = harnessJar.flatMap{ it.archiveFile }
     dependsOn(tasks.jar, harnessJar, downloadGame)
     doLast{
-        val phases = ((project.findProperty("campaignPhases") as String?) ?: "campaign-1,campaign-2,campaign-3,campaign-4,campaign-5,campaign-6").split(",").map{ it.trim() }
+        val phases = ((project.findProperty("campaignPhases") as String?) ?: "campaign-1,campaign-2,campaign-3,campaign-4,campaign-5,campaign-6,campaign-7,campaign-8").split(",").map{ it.trim() }
         val speed = (project.findProperty("harnessSpeed") as String?) ?: "1"
         val window = project.findProperty("harnessWindow") as String?
         val locale = project.findProperty("harnessLocale") as String?
@@ -235,7 +235,8 @@ tasks.register("runCampaign"){
 tasks.register("runCampaignUi"){
     group = "vesper"
     description = "The campaign's screens in the profiles runCampaign left (run/campaign-snapshots): after First Awakening, after the " +
-        "chapter and after Deep Signal, in English and Portuguese, at the default window size and at 1280x720. Screenshots and reports in run/campaign-ui-reports."
+        "chapter, after Deep Signal and after Central Control, in English and Portuguese, at the default window size and at 1280x720 " +
+        "(-PcampaignUiStates=campaign-ui-a,... for some of them). Screenshots and reports in run/campaign-ui-reports."
     val modJar = tasks.jar.flatMap{ it.archiveFile }
     val harnessFile = harnessJar.flatMap{ it.archiveFile }
     dependsOn(tasks.jar, harnessJar, downloadGame)
@@ -245,7 +246,9 @@ tasks.register("runCampaignUi"){
         reports.mkdirs()
         val java = File(System.getProperty("java.home"), "bin/java").absolutePath
         val failed = mutableListOf<String>()
-        for((state, snapshotName) in listOf("campaign-ui-a" to "campaign-1", "campaign-ui-b" to "campaign-3", "campaign-ui-c" to "campaign-5")){
+        val wanted = (project.findProperty("campaignUiStates") as String?)?.split(",")?.map{ it.trim() }
+        val states = listOf("campaign-ui-a" to "campaign-1", "campaign-ui-b" to "campaign-3", "campaign-ui-c" to "campaign-5", "campaign-ui-d" to "campaign-7")
+        for((state, snapshotName) in states.filter{ wanted == null || it.first in wanted }){
             val snapshot = runDir.dir("campaign-snapshots/$snapshotName").asFile
             if(!snapshot.exists()) throw GradleException("No $snapshotName profile in $snapshot: run runCampaign first")
             for(locale in listOf("en_US", "pt_BR")){

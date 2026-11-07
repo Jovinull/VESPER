@@ -213,7 +213,7 @@ public class MissionSuite implements VesperHarness.Suite{
             bot.rebuild = true;
         });
         //what the raid took, by name: the forge's carbon can catch fire and burn the lines around it, which bot.rebuild queues too
-        //and the ferroprism income pays for over minutes, so waiting for an idle bot would measure the fire and not this rebuild
+        //and the ferroprism income pays for over minutes, so the check for the raid does not wait for the fire: the next one does
         s.run(() -> {
             bot.build(structuralForge, 33, 22);
             for(int x : new int[]{37, 39, 41}) bot.build(surveyDrill, x, 23);
@@ -229,7 +229,16 @@ public class MissionSuite implements VesperHarness.Suite{
         s.until("recovery: alloy production resumes", () -> state.stats.coreItemCount.get(structuralAlloy) >= alloyBeforeRecovery + 10
             && world.build(33, 22) != null && world.build(33, 22).block == structuralForge, 120f,
             () -> "alloy delivered since the raid: " + (state.stats.coreItemCount.get(structuralAlloy) - alloyBeforeRecovery));
-        s.run(() -> bot.rebuild = false);
+        //the reactor takes hundreds of alloy, so the lines must stand again first: a fire can burn for a while after the forge is back.
+        //Five settled seconds, because a burning line files its plans a moment later; the budget covers the worst measured fire (491 s)
+        s.until("recovery: everything the fire burned stands again", () -> {
+            settled = bot.idle() && state.rules.defaultTeam.data().plans.isEmpty() ? settled + Time.delta : 0f;
+            return settled >= 5f * 60f;
+        }, 600f, () -> bot.status + ", t=" + minutes() + ", pending " + bot.pending() + ", team plans " + state.rules.defaultTeam.data().plans.size + ", lost so far " + lost);
+        s.run(() -> {
+            bot.rebuild = false;
+            h.line("info: recovery complete at t=" + minutes() + ", lost so far " + lost + ", core " + coreSummary());
+        });
 
         // --- the reactor: carry alloy and circuits from the core
         s.run(() -> bot.deliver(reactor(), structuralAlloy));
@@ -338,7 +347,7 @@ public class MissionSuite implements VesperHarness.Suite{
             () -> "before " + Strings.fixed(levelBefore, 1) + ", after " + Strings.fixed(Vesper.activity.level, 1));
     }
 
-    float stragglerTimer, stuckChecks;
+    float stragglerTimer, stuckChecks, settled;
     @Nullable Combat combat;
 
     /** The game ended with the core lost (a custom game's game over, or the sector lost in the campaign). */

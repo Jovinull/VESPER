@@ -19,6 +19,7 @@ public class Vesper extends Mod{
     public static BuriedFoundry foundry;
     public static ResonanceWorks works;
     public static DeepSignal deep;
+    public static CentralControl central;
     /** Chapter One of the campaign on the VESPER planet, and its dialogs (client only). */
     public static Chapter chapter;
     public static @Nullable ChapterUi chapterUi;
@@ -31,6 +32,7 @@ public class Vesper extends Mod{
         foundry = new BuriedFoundry();
         works = new ResonanceWorks();
         deep = new DeepSignal();
+        central = new CentralControl();
         chapter = new Chapter();
         if(!headless){
             chapterUi = new ChapterUi(new BasinHud());
@@ -39,7 +41,8 @@ public class Vesper extends Mod{
 
     /** The mission of the current map, if it has one. */
     public static @Nullable Scenario scenario(){
-        return mission.active() ? mission : fault.active() ? fault : foundry.active() ? foundry : works.active() ? works : deep.active() ? deep : null;
+        return mission.active() ? mission : fault.active() ? fault : foundry.active() ? foundry : works.active() ? works : deep.active() ? deep
+            : central.active() ? central : null;
     }
 
     @Override

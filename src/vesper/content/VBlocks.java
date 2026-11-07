@@ -60,7 +60,10 @@ public class VBlocks{
     resonanceDynamo, containmentField, worksRelay,
 
     //the Underworks (Deep Signal): built floors and walls, the deep network's terminal and relay nodes
-    hullPlating, signalChannel, bulkheadWall, signalTerminal, signalNode;
+    hullPlating, signalChannel, bulkheadWall, signalTerminal, signalNode,
+
+    //Central Control: the complex's conduits, its controller, the locks over its vents and the sites it restores
+    containmentConduit, recoveryConduit, centralController, containmentLock, distributionJunction, conductionArray, processingLine;
 
     /**
      * Visibility of every buildable Vesper block: everywhere but the campaigns of other planets, where the tech tree
@@ -471,8 +474,77 @@ public class VBlocks{
             requirements(Category.effect, BuildVisibility.sandboxOnly, with(structuralAlloy, 150));
             size = 3;
             health = 4000;
-            consumePower(2f);
         }};
+
+        //Central Control: created after the Underworks, so no earlier content changes id
+        containmentConduit = new Floor("containment-conduit", 3){{
+            emitLight = true;
+            lightRadius = 18f;
+            lightColor = VPal.resonance.cpy().a(0.14f);
+        }};
+        recoveryConduit = new Floor("recovery-conduit", 3){{
+            emitLight = true;
+            lightRadius = 18f;
+            lightColor = VPal.industrial.cpy().a(0.14f);
+        }};
+
+        distributionJunction = new ProtocolSite("distribution-junction"){{
+            requirements(Category.effect, BuildVisibility.sandboxOnly, with(structuralAlloy, 80));
+            size = 3;
+            health = 4000;
+            subsystem = false;
+            restoration = with(structuralAlloy, 80, recoveredCircuit, 40);
+            workTime = 30f * 60f;
+            restoreSurge = 3f;
+            glowColor = VPal.resonanceLight;
+        }};
+
+        conductionArray = new ProtocolSite("conduction-array"){{
+            requirements(Category.effect, BuildVisibility.sandboxOnly, with(structuralAlloy, 160));
+            size = 4;
+            health = 6000;
+            restoration = with(structuralAlloy, 120, recoveredCircuit, 60, conductiveScrap, 60);
+            workTime = 60f * 60f;
+            restoreSurge = 5f;
+            generation = 6f;
+            runningActivity = 5f;
+            glowColor = VPal.resonanceLight;
+        }};
+
+        processingLine = new ProtocolSite("processing-line"){{
+            requirements(Category.effect, BuildVisibility.sandboxOnly, with(structuralAlloy, 160));
+            size = 4;
+            health = 6000;
+            restoration = with(structuralAlloy, 100, recoveredCircuit, 60, resonanceCrystal, 40);
+            workTime = 60f * 60f;
+            restoreSurge = 5f;
+            recipe = with(conductiveScrap, 3, resonanceCrystal, 1);
+            output = new ItemStack(resonanceCore, 1);
+            craftTime = 150f;
+            runningActivity = 8f;
+            itemCapacity = 20;
+            consumePower(2f);
+            glowColor = VPal.industrialLight;
+        }};
+
+        containmentLock = new ContainmentLock("containment-lock"){{
+            requirements(Category.effect, BuildVisibility.sandboxOnly, with(structuralAlloy, 120));
+            size = 3;
+            health = 5000;
+        }};
+
+        centralController = new ProtocolController("central-controller"){{
+            requirements(Category.effect, BuildVisibility.sandboxOnly, with(structuralAlloy, 300));
+            size = 5;
+            health = 9000;
+            investigateTime = 40f * 60f;
+            //small: a whole base's industry already sits at the cap when the survey ends; the pressure comes from the protocols
+            investigateSurge = 5f;
+            glowColor = VPal.resonanceLight;
+            sites.addAll(distributionJunction, conductionArray, processingLine);
+        }};
+        PlanetaryActivity.shut = ContainmentLock::shuts;
+        PlanetaryActivity.holdPulse = ContainmentLock::hold;
 
         //planetary activity: how much a working building of each kind disturbs the basin
         var weights = PlanetaryActivity.weights;
@@ -486,7 +558,7 @@ public class VBlocks{
         weights.put(reinforcedDrill, 2f);
         weights.put(crystalExtractor, 4f);
         weights.put(resonanceDynamo, 7f);
-        PlanetaryActivity.resonant.addAll(crystalExtractor, experimentalResonator, ancientRecoverer, resonanceDynamo, signalNode);
+        PlanetaryActivity.resonant.addAll(crystalExtractor, experimentalResonator, ancientRecoverer, resonanceDynamo, signalNode, conductionArray, processingLine);
 
         for(Block block : new Block[]{transitBelt, cargoRouter, cargoJunction, cargoBridge, cargoUnloader, industrialConduit, resonanceLink, surveyDrill, reinforcedDrill,
             scrapCollector, crystalExtractor, structuralForge, scrapRecycler, alloyRefinery, mineralCompressor, combustionEngine, powerAccumulator,

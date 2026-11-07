@@ -163,6 +163,11 @@ public class AncientSite extends Block{
             return enabled() && team != Team.derelict;
         }
 
+        /** Whether a survey rig can investigate it (a site another machine reveals is not surveyed on its own). */
+        public boolean surveyable(){
+            return true;
+        }
+
         /** A survey rig adds investigation work (both sides predict it; only the server reveals the site). */
         public void investigate(float amount){
             if(siteState != SiteState.unexplored || !active()) return;
@@ -268,7 +273,7 @@ public class AncientSite extends Block{
                     Events.fire(new SiteEvent(this));
                     sync();
                 }
-            }else if(siteState == SiteState.restored){
+            }else if(siteState == SiteState.restored && output != null){
                 if(efficiency > 0f){
                     progress += getProgressIncrease(craftTime);
                     rotation += edelta() * 1.6f;
@@ -279,7 +284,7 @@ public class AncientSite extends Block{
                     if(output != null) items.add(output.item, output.amount);
                     VFx.recovererCraft.at(x, y, 0f, glowColor);
                 }
-                if(output != null) dump(output.item);
+                dump(output.item);
             }
             working = Mathf.approachDelta(working, siteState == SiteState.restored ? Mathf.clamp(efficiency) : 0f, 0.02f);
             float target = switch(siteState){

@@ -91,7 +91,7 @@ public class SurveyRig extends Block{
         }
 
         boolean valid(SiteBuild site){
-            return site.team == team && site.siteState == AncientSite.SiteState.unexplored && site.active()
+            return site.team == team && site.siteState == AncientSite.SiteState.unexplored && site.active() && site.surveyable()
                 && site.within(this, range + site.block.size * tilesize / 2f);
         }
 

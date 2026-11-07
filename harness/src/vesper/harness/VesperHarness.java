@@ -137,6 +137,12 @@ public class VesperHarness extends Mod{
                 case "deep-minimal" -> new DeepPlaySuite("minimal");
                 case "deep-resilience" -> new DeepResilienceSuite();
                 case "control" -> new ControlSuite();
+                case "control-conservative" -> new ControlPlaySuite("conservative");
+                case "control-aggressive" -> new ControlPlaySuite("aggressive");
+                case "control-balanced" -> new ControlPlaySuite("balanced");
+                case "control-opportunist" -> new ControlPlaySuite("opportunist");
+                case "control-opportunist-slow" -> new ControlPlaySuite("opportunist-slow");
+                case "control-economic" -> new ControlPlaySuite("economic");
                 case "defeat" -> new DefeatSuite();
                 case "gallery" -> new GallerySuite();
                 case "ui" -> new UiSuite();

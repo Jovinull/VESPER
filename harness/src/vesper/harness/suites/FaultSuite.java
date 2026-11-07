@@ -294,7 +294,8 @@ public class FaultSuite implements VesperHarness.Suite{
 
     static void link(int x0, int y0, int left, int bottom, int size){
         Building from = world.build(x0, y0), to = Worlds.at(left, bottom, size);
-        if(from != null && to != null && from != to && !from.power.links.contains(to.pos())) from.configure(to.pos());
+        //either end may be missing or still under construction (no power module) while it is rebuilt
+        if(from != null && to != null && from != to && from.power != null && to.power != null && !from.power.links.contains(to.pos())) from.configure(to.pos());
     }
 
     void phase(VesperHarness h, Script s, String name, Runnable queue, float timeout){

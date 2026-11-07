@@ -414,7 +414,7 @@ public class CampaignSuite implements VesperHarness.Suite{
         landing(h, s, deep, "deep-signal");
         s.check("launch: it cost Chapter One's secured sectors nothing", () -> chapterOneStock().toString().equals(itemsBefore),
             () -> "before " + itemsBefore + ", after " + chapterOneStock());
-        s.check("landing: Deep Signal lands with its own loadout", () -> state.rules.defaultTeam.core() != null && state.rules.defaultTeam.core().items.get(VItems.resonanceCore) == 100
+        s.check("landing: Deep Signal lands with its own loadout", () -> state.rules.defaultTeam.core() != null && state.rules.defaultTeam.core().items.get(VItems.resonanceCore) == 30
             && state.rules.defaultTeam.core().items.get(VItems.ferroprism) == 1600, () -> "");
         h.shot("campaign-24-deep-signal-landed", 59, 14, 2f, true);
 
@@ -495,7 +495,7 @@ public class CampaignSuite implements VesperHarness.Suite{
         landing(h, s, deep, "deep-signal");
         s.check("replay: a fresh Deep Signal (terminal unexplored, nothing done, its own loadout)", () -> Vesper.deep.active() && Vesper.deep.completed == 0
             && !Vesper.deep.victory && DeepPlaySuite.terminal() != null && DeepPlaySuite.terminal().siteState == vesper.world.AncientSite.SiteState.unexplored
-            && state.rules.defaultTeam.core() != null && state.rules.defaultTeam.core().items.get(VItems.resonanceCore) == 100, () -> "objectives " + Vesper.deep.completed);
+            && state.rules.defaultTeam.core() != null && state.rules.defaultTeam.core().items.get(VItems.resonanceCore) == 30, () -> "objectives " + Vesper.deep.completed);
         s.run(() -> state.rules.defaultTeam.cores().copy().each(c -> c.kill()));
         s.waitFor(() -> state.gameOver, 30f);
         s.wait(4f);
@@ -549,7 +549,7 @@ public class CampaignSuite implements VesperHarness.Suite{
         s.run(() -> click(h, Core.scene.getDialog(), Core.bundle.get("launch.text")));
         landing(h, s, deep, "deep-signal");
         s.check("0.6 profile: Deep Signal lands fresh, with its loadout; Chapter One's progress is untouched", () -> Vesper.deep.active() && Vesper.deep.completed == 0
-            && state.rules.defaultTeam.core().items.get(VItems.resonanceCore) == 100 && Chapter.complete() && Chapter.sectors.allMatch(Chapter::secured), () -> chapterSettings());
+            && state.rules.defaultTeam.core().items.get(VItems.resonanceCore) == 30 && Chapter.complete() && Chapter.sectors.allMatch(Chapter::secured), () -> chapterSettings());
         h.shot("campaign-legacy-02-deep-signal-landed", 59, 14, 2f, true);
         saveAndQuit(h, s);
         s.check("0.6 profile: after leaving, Deep Signal has its save and the chapter is as before", () -> deep.sector.hasSave() && chapterSettings().equals(settingsBefore),

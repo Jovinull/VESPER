@@ -47,7 +47,7 @@ public class DeepSignalSuite implements VesperHarness.Suite{
     static final int ventX = 28, ventY = 40;
 
     final IntIntMap delivered = new IntIntMap();
-    boolean listening;
+    boolean listening, keepFed;
     float holdShock = -1f, ticks, mark, expected;
     int syncEvents, wins, spentBefore, pulsesBefore;
     float progressBefore;
@@ -68,6 +68,10 @@ public class DeepSignalSuite implements VesperHarness.Suite{
                 var t = terminal();
                 if(t != null && t.syncState == SyncState.syncing && t.allOperational()) expected += Time.delta * Vesper.activity.resonanceMultiplier() / (150f * 60f);
                 if(holdShock >= 0f && Vesper.activity.active() && !net.client()) Vesper.activity.shock = holdShock;
+                //what the belts would keep bringing during the synchronization: a relay holds only 100 s of upkeep
+                if(keepFed && terminal() != null && t.syncState == SyncState.syncing){
+                    for(int i = 0; i < 3; i++) if(world.build(relays[i][0] + 1, relays[i][1] + 1) instanceof NodeBuild n && n.items.get(resonanceCore) < 3) feedNode(i, 4);
+                }
             });
             Events.on(ResetEvent.class, e -> holdShock = -1f);
         }
@@ -75,6 +79,7 @@ public class DeepSignalSuite implements VesperHarness.Suite{
 
         s.run(() -> {
             delivered.clear();
+            keepFed = false;
             syncEvents = wins = 0;
             campaignBefore = CampaignSuite.chapterSettings();
             Rules r = new Rules();
@@ -162,6 +167,7 @@ public class DeepSignalSuite implements VesperHarness.Suite{
         s.run(() -> {
             terminal().configure(true);
             mark = ticks;
+            keepFed = true;
         });
         s.wait(0.5f);
         s.check("sync: started; the relays show it and stir the basin twice as much", () -> terminal().syncState == SyncState.syncing
@@ -206,6 +212,7 @@ public class DeepSignalSuite implements VesperHarness.Suite{
         s.waitFor(() -> terminal().progress >= 0.40f, 120f);
         s.run(() -> {
             progressBefore = terminal().progress;
+            spentBefore = node(0).coresSpent + node(1).coresSpent;
             node(2).configure(false);
         });
         s.wait(7f);
@@ -213,6 +220,8 @@ public class DeepSignalSuite implements VesperHarness.Suite{
         s.wait(5f);
         s.check("long interruption: past the grace, it slips back about 1% per second", () -> near(progressBefore - terminal().progress, 0.04f, 0.015f), () -> terminalState()
             + ", lost " + Strings.fixed((progressBefore - terminal().progress) * 100f, 1) + "%");
+        s.check("long interruption: the two relays still running wait without burning a core", () -> node(0).coresSpent + node(1).coresSpent == spentBefore
+            && node(0).operational() && node(1).operational(), () -> nodeStates());
 
         // --- save and load in the middle of an interruption
         s.run(() -> {
@@ -286,10 +295,6 @@ public class DeepSignalSuite implements VesperHarness.Suite{
         });
 
         // --- a relay switched off at the last moment
-        s.run(() -> {
-            //cores for the rest of the run (what the belts would keep bringing)
-            for(int i = 0; i < 3; i++) feedNode(i, 6);
-        });
         s.waitFor(() -> terminal().progress >= 0.985f, 200f);
         s.run(() -> node(0).configure(false));
         s.wait(6f);
@@ -304,6 +309,7 @@ public class DeepSignalSuite implements VesperHarness.Suite{
 
         // --- after the completion
         s.run(() -> {
+            keepFed = false;
             spentBefore = nodes().sum(n -> n.coresSpent);
             terminal().configure(true);
             node(1).configure(false);
@@ -412,6 +418,11 @@ public class DeepSignalSuite implements VesperHarness.Suite{
         for(NodeBuild n : nodes()) out.append(n.tileX()).append(',').append(n.tileY()).append(' ').append(n.state()).append('/').append(n.reason()).append(" power ")
             .append(Strings.fixed(n.power.status, 2)).append(" cores ").append(n.items.get(resonanceCore)).append(" spent ").append(n.coresSpent).append("; ");
         return out.toString();
+    }
+
+    /** What the terminal says a synchronization costs, as the cost line formats it. */
+    static String costLine(TerminalBuild t){
+        return Core.bundle.format("vesper.terminal.cost", (int)t.syncSeconds(), t.coresPerSync(), t.upkeepCores(), t.powerCores());
     }
 
     static String terminalState(){

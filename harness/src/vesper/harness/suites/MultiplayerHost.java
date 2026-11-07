@@ -53,6 +53,8 @@ public class MultiplayerHost implements VesperHarness.Suite{
     /** Fixture: while >= 0 the server holds the activity surge here (to reach the pulse level quickly). */
     float holdShock = -1f;
     boolean holding;
+    /** Fixture: while true the server keeps the relay world's relays in cores during the synchronization (what belts would bring). */
+    boolean relayFeed;
     int syncEvents;
     /** Bottom-left tiles of the test stabilizer and extractors near the Resonance Fault core (sheltered crystal vein). */
     public static final int stabilizerX = 24, stabilizerY = 22;
@@ -65,6 +67,10 @@ public class MultiplayerHost implements VesperHarness.Suite{
             holding = true;
             Events.run(EventType.Trigger.update, () -> {
                 if(holdShock >= 0f && Vesper.activity.active()) Vesper.activity.shock = holdShock;
+                var t = DeepSignalSuite.terminal();
+                if(relayFeed && state.isPlaying() && t != null && t.syncState == vesper.world.SignalTerminal.SyncState.syncing){
+                    for(var n : t.nodes()) if(n.items.get(resonanceCore) < 3) n.handleStack(resonanceCore, 4, null);
+                }
             });
             Events.on(vesper.world.SignalTerminal.SyncEvent.class, e -> syncEvents++);
         }
@@ -623,6 +629,7 @@ public class MultiplayerHost implements VesperHarness.Suite{
             for(int[] r : DeepSignalSuite.relays) DeepSignalSuite.feed(world.build(r[0] - 2, r[1] + 1), resonanceCore, 40);
             DeepSignalSuite.node(0).handleStack(resonanceCore, 10, null);
             DeepSignalSuite.node(1).handleStack(resonanceCore, 10, null);
+            relayFeed = true;
             //what the fixture put in reaches the clients now (belts would have carried it on their side too)
             for(int[] r : DeepSignalSuite.relays) NetServer.syncBuilding(world.build(r[0] - 2, r[1] + 1));
             for(int i = 0; i < 3; i++) NetServer.syncBuilding(DeepSignalSuite.node(i));
@@ -700,6 +707,7 @@ public class MultiplayerHost implements VesperHarness.Suite{
             && a.get("gameover").equals("true") && a.get("won").equals("true"));
         s.run(() -> {
             for(Player p : Groups.player) Call.clientPacketReliable(p.con, packet, "shot:mp-deep-victory");
+            relayFeed = false;
         });
         s.wait(2f);
 

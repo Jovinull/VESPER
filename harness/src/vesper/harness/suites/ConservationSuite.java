@@ -7,6 +7,8 @@ import mindustry.game.*;
 import mindustry.gen.*;
 import mindustry.io.*;
 import mindustry.world.*;
+import mindustry.world.blocks.*;
+import mindustry.world.blocks.ConstructBlock.*;
 import mindustry.world.blocks.production.GenericCrafter.*;
 import vesper.harness.*;
 import vesper.world.ContainmentLock.*;
@@ -23,7 +25,8 @@ import static vesper.content.VItems.*;
  * seen a frame after it happens while the stock is read live, so a report read right after a craft was one core
  * behind. The first check reads on every frame before the ledger's own pass, as the scripts do: the raw balance must
  * catch that case (or this test proves nothing) and the settled balance must never be off. Then the other ways out:
- * a belt destroyed with cores on it, a unit killed carrying cores, save and load, and a lock that cannot pay.
+ * a belt destroyed with cores on it, a unit killed carrying cores, a scaffold destroyed with cores paid into it, save
+ * and load, and a lock that cannot pay.
  * <p>
  * Test fixtures: the resonator's inputs and the dynamo's first cores are added by the test, and the controller's cores too.
  */
@@ -106,6 +109,29 @@ public class ConservationSuite implements VesperHarness.Suite{
         //a dead flying unit falls for a while before it is gone
         s.waitFor(() -> !Groups.unit.contains(u -> u.team == team), 20f);
         s.check("conservation: a unit killed with cores: counted as lost", () -> ledger.coresLost == added + heldBefore && ledger.residual() == 0, () -> ledger.balance());
+
+        //a scaffold takes its cores a few at a time: they are held by it while it stands, and lost with it
+        s.run(() -> {
+            var core = state.rules.defaultTeam.core();
+            core.items.add(resonanceCore, 20);
+            core.items.add(structuralAlloy, 200);
+            core.items.add(recoveredCircuit, 100);
+            ledger.start.put(resonanceCore, ledger.start.get(resonanceCore, 0) + 20);
+            added = ledger.coresLost;
+            Tile tile = world.tile(30, 15);
+            tile.setBlock(ConstructBlock.get(resonanceDynamo.size), team, 0);
+            var scaffold = (ConstructBuild)tile.build;
+            scaffold.setConstruct(Blocks.air, resonanceDynamo);
+            Unit builder = UnitTypes.poly.spawn(team, 30 * tilesize, 12 * tilesize);
+            scaffold.construct(builder, core, 0.45f, null);
+            heldBefore = 20 - core.items.get(resonanceCore);
+            builder.remove();
+            h.check("conservation: a scaffold that took cores from the core holds them", heldBefore > 0 && ledger.residual() == 0, heldBefore + " paid; " + ledger.balance());
+            scaffold.kill();
+        });
+        s.wait(0.1f);
+        s.check("conservation: a scaffold destroyed with cores paid into it: counted as lost, the case the audit's defeat left unexplained", () -> ledger.coresLost == added + heldBefore
+            && ledger.residual() == 0 && ledger.offBalance == 0, () -> ledger.balance());
 
         //save and load: the machines stopped being fed, what the world holds is what it held
         s.run(() -> {

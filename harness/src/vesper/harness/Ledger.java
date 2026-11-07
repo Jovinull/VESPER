@@ -2,6 +2,7 @@ package vesper.harness;
 
 import arc.*;
 import arc.struct.*;
+import arc.util.*;
 import mindustry.game.EventType.*;
 import mindustry.gen.*;
 import mindustry.type.*;
@@ -24,8 +25,8 @@ import static mindustry.Vars.*;
  * (rebuilds included), what the machines made and burned, the lowest stock the core fell to and what is left.
  * Production is counted where it happens: a crafter finishing a craft, a drill handing over an ore, a generator
  * taking in fuel, a rig paying for a sample. Resonance cores are also balanced by conservation, as a check that no
- * sink was missed: every frame, what came in must equal what went out, what is held and what was lost with what
- * was destroyed. Production is seen by comparing progress with the last pass, a frame after it happened, while the
+ * sink was missed: every frame, what came in must equal what went out, what is held (a scaffold holds what it has
+ * paid for so far) and what was lost with what was destroyed. Production is seen by comparing progress with the last pass, a frame after it happened, while the
  * stock is read live: anything read between the two is one craft behind, so the readings ({@link #residual},
  * {@link #mark}, {@link #report}) count first. Snapshots ({@link #mark}) record the core and the counts at named
  * moments of the game.
@@ -49,7 +50,9 @@ public class Ledger{
             for(ItemStack s : e.tile.block().requirements) built.increment(s.item, Math.round(s.amount * state.rules.buildCostMultiplier));
         });
         Events.on(BlockDestroyEvent.class, e -> {
-            if(active && e.tile.team() == state.rules.defaultTeam && e.tile.build != null && e.tile.build.items != null) coresLost += e.tile.build.items.get(VItems.resonanceCore);
+            if(!active || e.tile.team() != state.rules.defaultTeam || e.tile.build == null) return;
+            if(e.tile.build instanceof ConstructBuild c) coresLost += invested(c, VItems.resonanceCore);
+            else if(e.tile.build.items != null) coresLost += e.tile.build.items.get(VItems.resonanceCore);
         });
         Events.on(UnitDestroyEvent.class, e -> {
             if(active && e.unit.team == state.rules.defaultTeam && e.unit.stack.item == VItems.resonanceCore) coresLost += e.unit.stack.amount;
@@ -81,14 +84,11 @@ public class Ledger{
     void update(){
         if(!active || !state.isPlaying()) return;
         count();
-        //a dynamo or field under construction takes its cores a few at a time and is counted when finished: nothing to balance until then
-        if(!coresUnderConstruction()){
-            int r = rawResidual();
-            frames++;
-            if(r != 0){
-                offBalance++;
-                if(Math.abs(r) > Math.abs(worst)) worst = r;
-            }
+        int r = rawResidual();
+        frames++;
+        if(r != 0){
+            offBalance++;
+            if(Math.abs(r) > Math.abs(worst)) worst = r;
         }
     }
 
@@ -120,11 +120,15 @@ public class Ledger{
         }
     }
 
-    boolean coresUnderConstruction(){
-        for(Building b : state.rules.defaultTeam.data().buildings){
-            if(b instanceof ConstructBuild c && c.current != null) for(ItemStack s : c.current.requirements) if(s.item == VItems.resonanceCore) return true;
+    /** What a scaffold has taken from the core so far: construction pays a little at a time, and is counted as built when it ends. */
+    static int invested(ConstructBuild c, Item item){
+        int[] left = Reflect.get(ConstructBuild.class, c, "itemsLeft");
+        if(left == null || c.current == null || left.length != c.current.requirements.length) return 0;
+        for(int i = 0; i < left.length; i++){
+            ItemStack s = c.current.requirements[i];
+            if(s.item == item) return Math.round(s.amount * state.rules.buildCostMultiplier) - left[i];
         }
-        return false;
+        return 0;
     }
 
     /** The core balance from the counts as they stand: 0 when every core is accounted for. */
@@ -172,7 +176,10 @@ public class Ledger{
     /** Items of one kind held anywhere by the team: buildings (belts included) and units. */
     public static int held(Item item){
         int sum = 0;
-        for(Building b : state.rules.defaultTeam.data().buildings) if(b.items != null) sum += b.items.get(item);
+        for(Building b : state.rules.defaultTeam.data().buildings){
+            if(b instanceof ConstructBuild c) sum += invested(c, item);
+            else if(b.items != null) sum += b.items.get(item);
+        }
         //the unit group, not the team's list: that one is rebuilt once a frame and misses a unit just spawned
         for(Unit u : Groups.unit) if(u.team == state.rules.defaultTeam && u.stack.item == item) sum += u.stack.amount;
         return sum;

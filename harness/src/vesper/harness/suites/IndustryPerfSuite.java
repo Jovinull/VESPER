@@ -23,7 +23,8 @@ import static vesper.content.VItems.*;
  * lookups a landing pulse makes for every building it reaches, the same lookup for every building of the base (the
  * worst case), the per-frame overload check of every stabilizer; and ten dynamos on one grid of over a thousand
  * consumers (their per-tick demand). Then Deep Signal's network mid-synchronization: the terminal and relays' frame, the
- * objectives, the panel text, and saving and loading. Each timing is the median (and the minimum) of 7 runs after 3 warm-up runs,
+ * objectives, the panel text, and saving and loading; and Central Control's protocols mid-sequence: the controller, its
+ * locks and sites, the demand the power graph asks for, the open vents, the objectives, the panel, saving and loading. Each timing is the median (and the minimum) of 7 runs after 3 warm-up runs,
  * measured in this process with System.nanoTime; a new frame is simulated where the code caches per frame. Fails
  * only past generous budgets.
  */
@@ -118,6 +119,91 @@ public class IndustryPerfSuite implements VesperHarness.Suite{
             float load = (System.nanoTime() - start) / 1e6f;
             h.line("info: performance: saving the relay world mid-synchronization " + ms(save[0]) + " (min " + ms(save[1]) + "), loading it " + ms(load));
             h.check("performance: saving the relay world mid-synchronization costs under 200 ms", save[0] < 200f, ms(save[0]));
+        });
+
+        // --- 0.8: Central Control's protocols in the middle of the reactivation sequence (the control suite's world)
+        s.run(() -> {
+            Rules r = new Rules();
+            r.waves = false;
+            r.waveTimer = false;
+            r.canGameOver = false;
+            r.tags.put(vesper.mission.FirstAwakening.tagScenario, vesper.mission.CentralControl.scenarioId);
+            r.tags.put(PlanetaryActivity.tagEnabled, "true");
+            r.tags.put(PlanetaryActivity.tagResponse, "true");
+            r.tags.put(vesper.world.AncientSite.tagEnabled, "true");
+            StringBuilder g = new StringBuilder();
+            for(int[] l : ControlSuite.locks) g.append(g.length() == 0 ? "" : ";").append(l[0] + 1).append(',').append(l[1] + 1);
+            r.tags.put(PlanetaryActivity.tagGates, g.toString());
+            Worlds.generate(ControlSuite.width, ControlSuite.height, ControlSuite::generate, r);
+        });
+        s.wait(0.5f);
+        s.run(() -> {
+            //test setup: surveyed, every site's materials and work in, cores and fuel stocked, the sequence started with every lock on
+            var c = ControlSuite.controller();
+            c.investigate(1f);
+            for(int i = 0; i < 3; i++) ControlSuite.dynamo(i).items.add(resonanceCore, 10);
+            c.items.add(resonanceCore, 30);
+        });
+        s.wait(1f);
+        s.run(() -> {
+            var j = ControlSuite.junction();
+            j.handleStack(structuralAlloy, 80, null);
+            j.handleStack(recoveredCircuit, 40, null);
+            j.work(1e6f);
+        });
+        s.wait(1f);
+        s.run(() -> {
+            for(var site : new vesper.world.ProtocolSite.ProtocolSiteBuild[]{ControlSuite.array(), ControlSuite.line()}){
+                for(var stack : ((vesper.world.ProtocolSite)site.block).restoration) site.handleStack(stack.item, stack.amount, null);
+                site.work(1e6f);
+            }
+            ControlSuite.line().items.add(conductiveScrap, 18);
+            ControlSuite.line().items.add(resonanceCrystal, 6);
+        });
+        s.waitFor(() -> ControlSuite.controller().contained(), 30f);
+        s.run(() -> ControlSuite.controller().configure(true));
+        s.wait(2f);
+        s.run(() -> {
+            var c = ControlSuite.controller();
+            var locks = c.locks();
+            var sites = c.sites();
+            var pa = Vesper.activity;
+            //a frame of the complex: the controller, its three locks and three sites updated
+            float[] complex = time(3, 7, 200, () -> {
+                c.updateTile();
+                for(int i = 0; i < locks.size; i++) locks.get(i).updateTile();
+                for(int i = 0; i < sites.size; i++) sites.get(i).updateTile();
+            });
+            //what the power graph asks every tick (the demand walks the buses), with a new update each time
+            float[] demand = time(3, 7, 500, () -> {
+                state.updateId++;
+                c.demand();
+            });
+            //what the planet asks once a second: which vents are open
+            float[] gates = time(3, 7, 200, pa::openGates);
+            float[] objectives = time(3, 7, 200, () -> {
+                for(var o : Vesper.central.objectives){
+                    o.done.get();
+                    o.text();
+                }
+            });
+            float[] info = time(3, 7, 50, c::infoText);
+            h.line("info: performance: Central Control mid-sequence (" + c.sequence + ", " + c.mode + ", " + locks.count(vesper.world.ContainmentLock.LockBuild::sealed)
+                + " vents shut): controller, 3 locks and 3 sites " + us(complex[0]) + " a frame (min " + us(complex[1]) + "); the demand " + us(demand[0]) + " (min "
+                + us(demand[1]) + "); the open vents " + us(gates[0]) + "; the 6 objectives and their texts " + us(objectives[0]) + "; the controller's panel text " + us(info[0]));
+            h.check("performance: the controller, its locks and sites cost under 0.2 ms a frame", complex[0] < 0.2f, ms(complex[0]));
+            h.check("performance: the controller's demand costs under 0.05 ms", demand[0] < 0.05f, ms(demand[0]));
+            h.check("performance: the Central Control objectives cost under 0.2 ms a frame", objectives[0] < 0.2f, ms(objectives[0]));
+            h.check("performance: the controller's panel text costs under 0.5 ms", info[0] < 0.5f, ms(info[0]));
+            var file = h.out.child("perf-control.msav");
+            float[] save = time(1, 5, 1, () -> mindustry.io.SaveIO.save(file));
+            long start = System.nanoTime();
+            logic.reset();
+            mindustry.io.SaveIO.load(file);
+            state.set(mindustry.core.GameState.State.playing);
+            float load = (System.nanoTime() - start) / 1e6f;
+            h.line("info: performance: saving the control world mid-sequence " + ms(save[0]) + " (min " + ms(save[1]) + "), loading it " + ms(load));
+            h.check("performance: saving the control world mid-sequence costs under 200 ms", save[0] < 200f, ms(save[0]));
         });
     }
 

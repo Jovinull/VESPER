@@ -359,8 +359,8 @@ tasks.register<JavaExec>("runServer"){
     mainClass.set("mindustry.server.ServerLauncher")
     workingDir = serverDir.asFile
     jvmArgs("-Dvesper.harness=$suites", "-Dvesper.harness.speed=$speed")
-    //the whole headless list takes about 45 minutes at 3x on CI runners; the limit only stops a run that hangs
-    timeout.set(Duration.ofMinutes(75))
+    //the whole headless list takes about an hour at 3x on CI runners; the limit only stops a run that hangs
+    timeout.set(Duration.ofMinutes(100))
     doFirst{
         val mods = File(serverDir.asFile, "config/mods")
         mods.mkdirs()

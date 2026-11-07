@@ -29,8 +29,8 @@ public class Chapter{
     /** The chapter's sectors in order; securing one makes the next available (through the tech tree). */
     public static final Seq<SectorPreset> sectors = new Seq<>();
     /**
-     * Chapter Two's sectors so far (Deep Signal): opened by the end of Chapter One, never part of it. Securing one
-     * records it like a Chapter One sector, but nothing here marks Chapter Two complete: its other sectors do not exist yet.
+     * Chapter Two's sectors so far (Deep Signal, Central Control): opened by the end of Chapter One, never part of it.
+     * Securing one records it like a Chapter One sector, but nothing here marks Chapter Two complete: it goes on.
      */
     public static final Seq<SectorPreset> deeper = new Seq<>();
     static final String prefix = "vesper-campaign-";
@@ -46,7 +46,10 @@ public class Chapter{
         deepSignal("deep-signal", 2),
         signalProtocol("signal-protocol", 3),
         relayChambers("relay-chambers", 3),
-        centralControl("central-control", 3);
+        centralControl("central-control", 3),
+        controlProtocols("control-protocols", 4),
+        restoredWings("restored-wings", 4),
+        partialReactivation("partial-reactivation", 4);
 
         public static final Record[] all = values();
 
@@ -150,6 +153,8 @@ public class Chapter{
         }
         //the three relays running at once: they answer each other
         if(Vesper.deep.active() && Vesper.deep.completed >= 2) discover(Record.relayChambers);
+        //both wings restored: the controller's logs read differently
+        if(Vesper.central.active() && Vesper.central.completed >= 4) discover(Record.restoredWings);
     }
 
     void site(SiteBuild site){
@@ -160,6 +165,9 @@ public class Chapter{
         }else if(site.block == VBlocks.signalTerminal){
             if(site.siteState != SiteState.unexplored) discover(Record.signalProtocol);
             if(site instanceof vesper.world.SignalTerminal.TerminalBuild t && t.syncState == vesper.world.SignalTerminal.SyncState.synced) discover(Record.centralControl);
+        }else if(site.block == VBlocks.centralController){
+            if(site.siteState != SiteState.unexplored) discover(Record.controlProtocols);
+            if(site instanceof vesper.world.ProtocolController.ControllerBuild c && c.sequence == vesper.world.ProtocolController.Sequence.complete) discover(Record.partialReactivation);
         }else if(site.block == VBlocks.archiveTerminal && site.siteState == SiteState.investigated){
             discover(Record.archiveIndex);
             if(!net.client() && !archiveRead()){

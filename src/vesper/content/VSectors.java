@@ -10,10 +10,14 @@ import static mindustry.Vars.*;
 public class VSectors{
     /** Fixed sector ids on the planet grid; sector saves and sector info are keyed by them, so they never change. */
     public static final int firstAwakeningId = 12, resonanceFaultId = 77, buriedFoundryId = 27, deepSignalId = 42;
+    /** Chapter Two's second sector: the grid's pentagon next to Deep Signal (its neighbours 42, 43, 44, 45, 46; none of Chapter One's). */
+    public static final int centralControlId = 2;
 
     public static SectorPreset firstAwakening, resonanceFault, buriedFoundry;
     /** The region below the Basin, the first sector of Chapter Two: available once Chapter One is complete. */
     public static SectorPreset deepSignal;
+    /** The complex the deep network answered to, Chapter Two's second sector: available once Deep Signal is secured. */
+    public static SectorPreset centralControl;
 
     public static void load(){
         //the shipped maps, unchanged: they keep their rules, loadout and win condition (captureWave -1: the scenario
@@ -48,8 +52,18 @@ public class VSectors{
         }};
         deepSignal.initialize(VPlanets.vesper, deepSignalId);
 
+        //Chapter Two's second sector, the same way (a build that has not generated its map yet lands on the gallery)
+        boolean control = tree != null && tree.get("maps/central-control." + mapExtension).exists();
+        centralControl = new SectorPreset("central-control", (LoadedMod)null){{
+            generator = new FileMapGenerator(maps == null ? null : maps.loadInternalMap(control ? "central-control" : "vesper-gallery"), this);
+            captureWave = -1;
+            difficulty = 9f;
+            rules = r -> {};
+        }};
+        centralControl.initialize(VPlanets.vesper, centralControlId);
+
         Chapter.sectors.addAll(firstAwakening, resonanceFault, buriedFoundry);
-        Chapter.deeper.add(deepSignal);
+        Chapter.deeper.addAll(deepSignal, centralControl);
         Chapter.sectors.each(Chapter::freeLaunch);
         Chapter.deeper.each(Chapter::freeLaunch);
     }

@@ -113,10 +113,15 @@ public class VesperGenerator extends PlanetGenerator{
             out.set(amberDark).lerp(amber, 1f - base / 0.14f);
             return;
         }
-        //the deep region answers once Chapter One is complete
+        //the deep region answers once Chapter One is complete, the complex below it once Deep Signal is secured
         float deep = VSectors.deepSignal == null ? 999f : p.dst(VSectors.deepSignal.sector.tile.v);
         if(Chapter.complete() && deep < 0.1f){
             out.set(veinGlow).lerp(signal, 1f - deep / 0.1f);
+            return;
+        }
+        float control = VSectors.centralControl == null ? 999f : p.dst(VSectors.centralControl.sector.tile.v);
+        if(VSectors.deepSignal != null && Chapter.secured(VSectors.deepSignal) && control < 0.1f){
+            out.set(veinGlow).lerp(signal, 1f - control / 0.1f);
             return;
         }
         if(onSeam && channel()){
@@ -153,6 +158,8 @@ public class VesperGenerator extends PlanetGenerator{
     public void getLockedText(Sector hovered, StringBuilder out){
         if(hovered.preset != null && hovered.preset == VSectors.deepSignal && hovered.preset.locked()){
             out.append("[#").append(signal).append("]").append(hovered.preset.localizedName).append("\n[lightgray]").append(Core.bundle.get("vesper.deep.locked"));
+        }else if(hovered.preset != null && hovered.preset == VSectors.centralControl && hovered.preset.locked()){
+            out.append("[#").append(signal).append("]").append(hovered.preset.localizedName).append("\n[lightgray]").append(Core.bundle.get("vesper.central.locked"));
         }else{
             super.getLockedText(hovered, out);
         }

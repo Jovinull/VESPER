@@ -36,7 +36,7 @@ public class TreeSuite implements VesperHarness.Suite{
             Planet p = VPlanets.vesper;
             h.check("planet: VESPER is listed (always unlocked) and orbits the sun", p != null && p.alwaysUnlocked && p.accessible && p.visible && p.parent == Planets.sun
                 && p.hasGrid(), p == null ? "missing" : p.name);
-            h.check("planet: only its preset sectors can be landed on", !p.allowLaunchToNumbered && p.sectors.count(sec -> sec.preset != null) == 4
+            h.check("planet: only its preset sectors can be landed on", !p.allowLaunchToNumbered && p.sectors.count(sec -> sec.preset != null) == 5
                 && p.sectors.size == 92, p.sectors.count(sec -> sec.preset != null) + " presets of " + p.sectors.size + " sectors");
             h.check("planet: maps keep their own buildings, lighting and cores (no prebuild, no day cycle, fresh map after a loss)", !p.prebuildBase && !p.updateLighting
                 && p.clearSectorOnLose && p.defaultCore == coreFoothold && !p.allowLaunchLoadout && !p.allowLaunchSchematics, "");
@@ -83,6 +83,27 @@ public class TreeSuite implements VesperHarness.Suite{
                 && deep.techNode.objectives.contains(o -> o instanceof ChapterObjective c && c.display().equals(Core.bundle.get("vesper.requirement.chapter-one"))
                 && c.complete() == Chapter.complete()), deep.techNode.objectives.toString());
             h.check("sector deep-signal: not shown as an enemy base", !deep.sector.hasEnemyBase(), "");
+
+            //Central Control: Chapter Two's second sector, on the grid's pentagon next to Deep Signal, opened by Deep Signal's capture
+            SectorPreset cc = VSectors.centralControl;
+            Map ccMap = cc.generator.map, ccReal = shipped("central-control");
+            Rules ccRules = new Rules();
+            cc.rules.get(ccRules);
+            h.check("sector central-control: id 2, next to Deep Signal and to none of Chapter One's sectors", cc.sector.id == 2 && cc.planet == p
+                && cc.sector.isNear(deep.sector) && !cc.sector.isNear(VSectors.firstAwakening.sector) && !cc.sector.isNear(VSectors.resonanceFault.sector)
+                && !cc.sector.isNear(VSectors.buriedFoundry.sector), "id " + cc.sector.id);
+            h.check("sector central-control: no other preset claims its id", Seq.with(VSectors.firstAwakening, VSectors.resonanceFault, VSectors.buriedFoundry, deep)
+                .allMatch(o -> o.sector.id != cc.sector.id) && content.sectors().count(o -> o.sector == cc.sector) == 1, "");
+            h.check("sector central-control: the shipped map, rules untouched, a native capture", ccMap != null && ccMap.file.name().equals("central-control." + mapExtension)
+                && vesper.mission.CentralControl.scenarioId.equals(ccMap.rules().tags.get(FirstAwakening.tagScenario)) && cc.captureWave == -1 && ccRules.winWave == 0,
+                "map " + (ccMap == null ? "-" : ccMap.file.name()));
+            h.check("sector central-control: Chapter Two (after Deep Signal), never Chapter One", !Chapter.sectors.contains(cc) && Chapter.deeper.indexOf(cc) == 1
+                && Chapter.deeper.indexOf(deep) == 0, "");
+            h.check("sector central-control: the launch charges nothing, the map still lands with its loadout", ccMap != null && ccMap.rules().loadout.isEmpty()
+                && ccReal != null && ccReal.rules().loadout.size > 0, ccReal == null ? "" : "loadout " + ccReal.rules().loadout);
+            h.check("sector central-control: opens with Deep Signal's capture and on nothing else", cc.requireUnlock && cc.techNode.parent == deep.techNode
+                && cc.techNode.requirements.length == 0 && cc.techNode.objectives.size == 1 && waitsOn(cc.techNode, deep), cc.techNode.objectives.toString());
+            h.check("sector central-control: not shown as an enemy base", !cc.sector.hasEnemyBase(), "");
 
             //the tree
             TechNode root = VTechTree.root;
@@ -137,8 +158,8 @@ public class TreeSuite implements VesperHarness.Suite{
             Seq<String> used = Seq.with("planet.vesper-planet.name", "planet.vesper-planet.description", "techtree.vesper", "vesper.deep.locked", "vesper.record.announce",
                 "vesper.secured.title", "vesper.secured.available", "vesper.secured.next", "vesper.chapter.title", "vesper.chapter.subtitle", "vesper.chapter.text",
                 "vesper.chapter.next", "vesper.archive", "vesper.archive.title", "vesper.archive.unknown", "vesper.intro.title", "vesper.intro.text", "vesper.intro.go",
-                "vesper.intro.later", "vesper.requirement.archive", "vesper.requirement.chapter-one", "vesper.secured.deeper", "vesper.chapter.two");
-            for(SectorPreset preset : new SectorPreset[]{VSectors.firstAwakening, VSectors.resonanceFault, VSectors.buriedFoundry, VSectors.deepSignal}){
+                "vesper.intro.later", "vesper.requirement.archive", "vesper.requirement.chapter-one", "vesper.secured.deep-signal", "vesper.secured.central-control", "vesper.central.locked", "vesper.chapter.two");
+            for(SectorPreset preset : new SectorPreset[]{VSectors.firstAwakening, VSectors.resonanceFault, VSectors.buriedFoundry, VSectors.deepSignal, VSectors.centralControl}){
                 used.addAll("sector." + preset.name + ".name", "sector." + preset.name + ".description");
             }
             for(var r : Chapter.Record.all) used.addAll("vesper.record." + r.id + ".title", "vesper.record." + r.id + ".text");

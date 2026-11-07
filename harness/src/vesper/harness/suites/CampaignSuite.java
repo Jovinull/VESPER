@@ -425,10 +425,14 @@ public class CampaignSuite implements VesperHarness.Suite{
             && Chapter.Record.relayChambers.found() && Chapter.Record.centralControl.found(), () -> chapterSettings());
         s.check("capture: Chapter One is untouched (still complete, still three sectors), and nothing marks Chapter Two complete", () -> Chapter.complete()
             && Chapter.sectors.size == 3 && Chapter.sectors.allMatch(Chapter::secured) && !Core.settings.has("vesper-campaign-chapter-two"), () -> chapterSettings());
+        s.waitFor(() -> VSectors.centralControl.unlocked(), 5f);
+        s.check("capture: Central Control (Chapter Two's second sector) opens right after, never played", () -> VSectors.centralControl.unlocked()
+            && !VSectors.centralControl.sector.hasSave() && !Chapter.secured(VSectors.centralControl), () -> chapterSettings());
         //the dialog waits for the HUD's announcements (the victory and the records found at the capture), up to 40 s
         s.waitFor(() -> UiSuite.dialogText().contains(Core.bundle.format("vesper.secured.title", deep.localizedName)), 60f);
-        s.check("capture: the dialog shows what Deep Signal gave and the route below, which does not open", () -> UiSuite.dialogText().contains(Core.bundle.format("vesper.secured.title", deep.localizedName))
-            && UiSuite.dialogText().contains(Chapter.Record.centralControl.title()) && UiSuite.dialogText().contains(Core.bundle.get("vesper.secured.deeper")), () -> UiSuite.dialogText());
+        s.check("capture: the dialog shows what Deep Signal gave, the route below and the next sector, Central Control", () -> UiSuite.dialogText().contains(Core.bundle.format("vesper.secured.title", deep.localizedName))
+            && UiSuite.dialogText().contains(Chapter.Record.centralControl.title()) && UiSuite.dialogText().contains(Core.bundle.get("vesper.secured.deep-signal"))
+            && UiSuite.dialogText().contains(Core.bundle.format("vesper.secured.next", VSectors.centralControl.localizedName)), () -> UiSuite.dialogText());
         h.shot("campaign-25-deep-signal-secured", 60, 45, 2f, true);
         s.run(() -> click(h, Core.scene.getDialog(), Core.bundle.get("continue")));
         s.wait(0.5f);

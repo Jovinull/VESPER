@@ -27,8 +27,8 @@ import static vesper.content.VItems.*;
  * <li>upgrades researched with materials (paid from the player's sectors, the ones already secured first), none
  * needed by a mission.</li>
  * </ul>
- * The sectors are nodes too: each one waits on the capture of the one before, and the deep region on a
- * requirement this version never meets.
+ * The sectors are nodes too: each one waits on the capture of the one before; Deep Signal on the end of Chapter
+ * One, Central Control on the capture of Deep Signal.
  * Item dependencies stay where they read as discoveries (the pulse turret waits for the first crystal); research
  * costs only use items the foundations already produce, so nothing is circular.
  */
@@ -40,7 +40,10 @@ public class VTechTree{
             node(VSectors.firstAwakening, () -> node(VSectors.resonanceFault, () -> node(VSectors.buriedFoundry, () -> {
                 //the region below opens once Chapter One is complete (in a new profile, or one that finished it in an older version:
                 //the native unlock check runs at every start and after every capture)
-                node(VSectors.deepSignal, Seq.with(new ChapterObjective("chapter-one", Chapter::complete)), () -> {});
+                node(VSectors.deepSignal, Seq.with(new ChapterObjective("chapter-one", Chapter::complete)), () -> {
+                    //the complex below opens once Deep Signal is captured (a profile that captured it in 0.7 finds it open at once)
+                    node(VSectors.centralControl, Seq.with(new SectorComplete(VSectors.deepSignal)), () -> {});
+                });
             })));
 
             //industrial foundations: everything First Awakening is built with; the upgrades are researched

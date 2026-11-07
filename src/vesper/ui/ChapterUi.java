@@ -104,11 +104,13 @@ public class ChapterUi{
             }).row();
         }
 
-        int index = Chapter.sectors.indexOf(preset);
-        SectorPreset next = index >= 0 && index + 1 < Chapter.sectors.size ? Chapter.sectors.get(index + 1) : null;
-        if(next != null) c.add(Core.bundle.format("vesper.secured.next", next.localizedName)).wrap().color(Pal.lightishGray).padTop(12f).row();
-        //Chapter Two's first sector: the network answered from deeper still, a region this version does not open
-        if(Chapter.deeper.contains(preset)) c.add("@vesper.secured.deeper").wrap().color(Pal.lightishGray).padTop(12f).row();
+        //the next sector of the same chapter (Chapter One's end opens Chapter Two with its own dialog)
+        var chapter = Chapter.sectors.contains(preset) ? Chapter.sectors : Chapter.deeper;
+        int index = chapter.indexOf(preset);
+        SectorPreset next = index >= 0 && index + 1 < chapter.size ? chapter.get(index + 1) : null;
+        //what each Chapter Two sector points at: the route the network opened, and from the controller, a depth this version does not open
+        if(Chapter.deeper.contains(preset)) c.add("@vesper.secured." + preset.name.replace("vesper-", "")).wrap().color(Pal.lightishGray).padTop(12f).row();
+        if(next != null && next.unlocked()) c.add(Core.bundle.format("vesper.secured.next", next.localizedName)).wrap().color(Pal.lightishGray).padTop(12f).row();
 
         dialog.buttons.defaults().size(240f, 60f);
         dialog.buttons.button("@continue", Icon.ok, dialog::hide);

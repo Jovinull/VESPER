@@ -6,7 +6,7 @@ generator, the design alternatives that were explored and the one that was appro
 """
 from dataclasses import dataclass, field
 
-from families import campaign, defense, drills, effects, industry, logistics, materials, special, terrain, units
+from families import campaign, control, defense, drills, effects, industry, logistics, materials, special, terrain, units
 
 
 @dataclass
@@ -62,6 +62,8 @@ add("machine-basalt-wall", "terrain", "blocks/environment", "wall", terrain.mach
 add("hull-plating", "terrain", "blocks/environment", "floor", _variants(terrain.hull_plating, 3), 1, "Hull Plating", "Chapeamento de Casco")
 add("signal-channel", "terrain", "blocks/environment", "floor", _variants(terrain.signal_channel, 3), 1, "Signal Channel", "Canal de Sinal")
 add("bulkhead-wall", "terrain", "blocks/environment", "wall", terrain.bulkhead_wall, 1, "Bulkhead", "Antepara")
+add("containment-conduit", "control", "blocks/environment", "floor", _variants(control.containment_conduit, 3), 1, "Containment Conduit", "Conduto de Contenção")
+add("recovery-conduit", "control", "blocks/environment", "floor", _variants(control.recovery_conduit, 3), 1, "Recovery Conduit", "Conduto de Recuperação")
 
 # --- ores: 4 resources x 2 variants
 for key, label, label_pt in (("ore-ferroprism", "Ferroprism Ore", "Minério de Ferroprisma"),
@@ -148,6 +150,17 @@ add("signal-node", "special", "blocks/ruins", "block", special.signal_node, 3, "
     note="0.7: a relay of the deep network; the ancient plinth and trace language with conduit shoes on the axes.")
 add("signal-terminal", "special", "blocks/ruins", "block", special.signal_terminal, 4, "Control Terminal", "Terminal de Controle",
     note="0.7: the deep network's console; conduits run out to its edges, glyph panels light up when it is surveyed.")
+add("central-controller", "control", "blocks/ruins", "block", control.central_controller, 5, "Central Controller", "Controlador Central",
+    note="0.8: the complex's controller; containment ducts (cyan) west and north, recovery ducts (amber) east and south, a split ring turning in the core.")
+add("containment-lock", "control", "blocks/ruins", "block", control.containment_lock, 3, "Containment Lock", "Trava de Contenção",
+    note="0.8: an ancient collar around a vent shaft; the ribbed -shutter closes from both sides, the throat's -glow is tinted by state.",
+    free_layers=("-shutter",))
+add("distribution-junction", "control", "blocks/ruins", "block", control.distribution_junction, 3, "Distribution Junction", "Junção de Distribuição",
+    note="0.8: found dead and rusted; restored, its two cyan and two amber stubs light up.")
+add("conduction-array", "control", "blocks/ruins", "block", control.conduction_array, 4, "Conduction Array", "Rede de Condução",
+    note="0.8: four conduction coils around a field ring; found cracked, restored lit with the ring (-rotator) turning.")
+add("processing-line", "control", "blocks/ruins", "block", control.processing_line, 4, "Processing Line", "Linha de Processamento",
+    note="0.8: a press line between a hopper and an output chute; found seized, restored with turning rollers and an amber press.")
 add("works-relay", "special", "blocks/ruins", "block", special.works_relay, 3, "Works Relay", "Relé das Obras",
     note="0.6: the Resonance Works map's ancient relay; the ancient hull and trace language of the reactor and the ruins.")
 
@@ -162,6 +175,7 @@ add("sector-vesper-first-awakening", "campaign", "ui", "icon", campaign.sector_f
 add("sector-vesper-resonance-fault", "campaign", "ui", "icon", campaign.sector_resonance_fault, 0, "Resonance Fault", "Falha de Ressonância")
 add("sector-vesper-buried-foundry", "campaign", "ui", "icon", campaign.sector_buried_foundry, 0, "The Buried Foundry", "A Fundição Soterrada")
 add("sector-vesper-deep-signal", "campaign", "ui", "icon", campaign.sector_deep_signal, 0, "Deep Signal", "Sinal Profundo")
+add("sector-vesper-central-control", "control", "ui", "icon", control.sector_central_control, 0, "Central Control", "Controle Central")
 add("chapter-one", "campaign", "ui", "icon", campaign.chapter_one, 0, "Chapter One", "Capítulo Um")
 
 BY_NAME = {e.name: e for e in ENTRIES}

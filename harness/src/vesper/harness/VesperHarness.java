@@ -27,9 +27,9 @@ import static mindustry.Vars.*;
  * times faster (capped by the game's own maximum frame delta). Output goes to <data dir>/vesper-harness/.
  */
 public class VesperHarness extends Mod{
-    public static final String[] allSuites = {"content", "tree", "maps", "economy", "response", "mission", "fault-stable", "fault-loud", "archaeology", "foundry-salvage", "foundry-restore", "industry", "logistics", "deep", "deep-resilience", "control", "defeat", "gallery"};
+    public static final String[] allSuites = {"content", "tree", "maps", "economy", "response", "mission", "fault-stable", "fault-loud", "archaeology", "foundry-salvage", "foundry-restore", "industry", "logistics", "conservation", "deep", "deep-resilience", "control", "defeat", "gallery"};
     /** What a dedicated server (no renderer, no UI) can run: content runs its non-graphical checks only. */
-    public static final String[] headlessSuites = {"content", "tree", "maps", "economy", "response", "mission", "fault-stable", "fault-loud", "archaeology", "foundry-salvage", "foundry-restore", "industry", "logistics", "deep", "deep-resilience", "control", "defeat"};
+    public static final String[] headlessSuites = {"content", "tree", "maps", "economy", "response", "mission", "fault-stable", "fault-loud", "archaeology", "foundry-salvage", "foundry-restore", "industry", "logistics", "conservation", "deep", "deep-resilience", "control", "defeat"};
 
     final @Nullable String suites = System.getProperty("vesper.harness");
     final float speed = Strings.parseFloat(System.getProperty("vesper.harness.speed", "1"), 1f);
@@ -123,6 +123,7 @@ public class VesperHarness extends Mod{
                 case "foundry-mixed" -> new FoundrySuite("mixed");
                 case "industry" -> new IndustrySuite();
                 case "logistics" -> new LogisticsSuite();
+                case "conservation" -> new ConservationSuite();
                 case "deep" -> new DeepSignalSuite();
                 case "deep-ui" -> new DeepUiSuite();
                 case "industry-perf" -> new IndustryPerfSuite();

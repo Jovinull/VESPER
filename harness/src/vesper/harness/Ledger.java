@@ -5,6 +5,7 @@ import arc.struct.*;
 import mindustry.game.EventType.*;
 import mindustry.gen.*;
 import mindustry.type.*;
+import mindustry.world.blocks.ConstructBlock.*;
 import mindustry.world.blocks.power.ConsumeGenerator.*;
 import mindustry.world.blocks.production.Drill.*;
 import mindustry.world.blocks.production.GenericCrafter;
@@ -23,7 +24,11 @@ import static mindustry.Vars.*;
  * (rebuilds included), what the machines made and burned, the lowest stock the core fell to and what is left.
  * Production is counted where it happens: a crafter finishing a craft, a drill handing over an ore, a generator
  * taking in fuel, a rig paying for a sample. Resonance cores are also balanced by conservation, as a check that no
- * sink was missed. Snapshots ({@link #mark}) record the core and the counts at named moments of the game.
+ * sink was missed: every frame, what came in must equal what went out, what is held and what was lost with what
+ * was destroyed. Production is seen by comparing progress with the last pass, a frame after it happened, while the
+ * stock is read live: anything read between the two is one craft behind, so the readings ({@link #residual},
+ * {@link #mark}, {@link #report}) count first. Snapshots ({@link #mark}) record the core and the counts at named
+ * moments of the game.
  */
 public class Ledger{
     public final ObjectIntMap<Item> start = new ObjectIntMap<>(), built = new ObjectIntMap<>(), made = new ObjectIntMap<>(), burned = new ObjectIntMap<>(),
@@ -33,11 +38,21 @@ public class Ledger{
     public final ObjectIntMap<mindustry.world.Block> madeBy = new ObjectIntMap<>();
     final IntFloatMap last = new IntFloatMap();
     public boolean active;
+    /** Resonance cores destroyed with the buildings and units that held them. */
+    public int coresLost;
+    /** Frames balanced, and those that did not balance (with the worst residual seen). */
+    public int frames, offBalance, worst;
 
     public Ledger(){
         Events.on(BlockBuildEndEvent.class, e -> {
             if(!active || e.breaking || e.team != state.rules.defaultTeam || e.tile.build == null) return;
             for(ItemStack s : e.tile.block().requirements) built.increment(s.item, Math.round(s.amount * state.rules.buildCostMultiplier));
+        });
+        Events.on(BlockDestroyEvent.class, e -> {
+            if(active && e.tile.team() == state.rules.defaultTeam && e.tile.build != null && e.tile.build.items != null) coresLost += e.tile.build.items.get(VItems.resonanceCore);
+        });
+        Events.on(UnitDestroyEvent.class, e -> {
+            if(active && e.unit.team == state.rules.defaultTeam && e.unit.stack.item == VItems.resonanceCore) coresLost += e.unit.stack.amount;
         });
         Events.run(Trigger.update, this::update);
         Events.on(ResetEvent.class, e -> active = false);
@@ -53,6 +68,7 @@ public class Ledger{
         marks.clear();
         madeBy.clear();
         last.clear();
+        coresLost = frames = offBalance = worst = 0;
         var core = state.rules.defaultTeam.core();
         if(core == null) return;
         for(Item item : content.items()){
@@ -64,9 +80,22 @@ public class Ledger{
 
     void update(){
         if(!active || !state.isPlaying()) return;
+        count();
+        //a dynamo or field under construction takes its cores a few at a time and is counted when finished: nothing to balance until then
+        if(!coresUnderConstruction()){
+            int r = rawResidual();
+            frames++;
+            if(r != 0){
+                offBalance++;
+                if(Math.abs(r) > Math.abs(worst)) worst = r;
+            }
+        }
+    }
+
+    /** Brings the counts up to what the machines have done so far (more than once on a frame is harmless). */
+    void count(){
         var core = state.rules.defaultTeam.core();
-        if(core == null) return;
-        for(Item item : content.items()) if(core.items.get(item) < low.get(item, 0)) low.put(item, core.items.get(item));
+        if(core != null) for(Item item : content.items()) if(core.items.get(item) < low.get(item, 0)) low.put(item, core.items.get(item));
         for(Building b : state.rules.defaultTeam.data().buildings){
             if(b instanceof ResonanceDynamoBuild) continue;
             if(b instanceof GenericCrafterBuild g && g.block instanceof GenericCrafter c && c.outputItem != null){
@@ -89,6 +118,29 @@ public class Ledger{
                 if(rose(b.id, r.sample)) burned.increment(VItems.recoveredCircuit);
             }
         }
+    }
+
+    boolean coresUnderConstruction(){
+        for(Building b : state.rules.defaultTeam.data().buildings){
+            if(b instanceof ConstructBuild c && c.current != null) for(ItemStack s : c.current.requirements) if(s.item == VItems.resonanceCore) return true;
+        }
+        return false;
+    }
+
+    /** The core balance from the counts as they stand: 0 when every core is accounted for. */
+    public int rawResidual(){
+        return start.get(VItems.resonanceCore, 0) + made.get(VItems.resonanceCore, 0) - built.get(VItems.resonanceCore, 0) - coresBurned() - held(VItems.resonanceCore) - coresLost;
+    }
+
+    /** The core balance now: 0 when every core is accounted for. */
+    public int residual(){
+        if(active) count();
+        return rawResidual();
+    }
+
+    /** The conservation check in words. */
+    public String balance(){
+        return "residual " + residual() + ", frames off balance " + offBalance + " of " + frames + (offBalance > 0 ? " (worst " + worst + ")" : "");
     }
 
     /** Progress that went down since the last frame: a craft or an ore handed over. */
@@ -121,12 +173,14 @@ public class Ledger{
     public static int held(Item item){
         int sum = 0;
         for(Building b : state.rules.defaultTeam.data().buildings) if(b.items != null) sum += b.items.get(item);
-        for(Unit u : state.rules.defaultTeam.data().units) if(u.stack.item == item) sum += u.stack.amount;
+        //the unit group, not the team's list: that one is rebuilt once a frame and misses a unit just spawned
+        for(Unit u : Groups.unit) if(u.team == state.rules.defaultTeam && u.stack.item == item) sum += u.stack.amount;
         return sum;
     }
 
     /** Records the core's stock and the counts so far under a name. */
     public void mark(String name){
+        if(active) count();
         var core = state.rules.defaultTeam.core();
         marks.put(name, "core " + (core == null ? "-" : stock(core.items)) + "; made cores " + made.get(VItems.resonanceCore, 0) + ", burned cores " + coresBurned()
             + ", held cores " + held(VItems.resonanceCore));
@@ -144,6 +198,7 @@ public class Ledger{
 
     /** The accounts, item by item: start, construction, made, burned, lowest core stock, now in the core; and the core balance. */
     public String report(){
+        if(active) count();
         var core = state.rules.defaultTeam.core();
         StringBuilder out = new StringBuilder();
         for(Item item : content.items()){
@@ -154,10 +209,11 @@ public class Ledger{
             if(u > 0) out.append(" burned ").append(u);
             out.append(" low ").append(low.get(item, 0)).append(" now ").append(now);
         }
-        //cores: what came in (start, made) against what went out (construction, burned) and what is held
+        //cores: what came in (start, made) against what went out (construction, burned), what is held and what was destroyed
         int in = start.get(VItems.resonanceCore, 0) + made.get(VItems.resonanceCore, 0), outflow = built.get(VItems.resonanceCore, 0) + coresBurned(),
             held = held(VItems.resonanceCore);
-        out.append(" | cores in ").append(in).append(", out ").append(outflow).append(", held ").append(held).append(", unaccounted ").append(in - outflow - held);
+        out.append(" | cores in ").append(in).append(", out ").append(outflow).append(", held ").append(held).append(", lost ").append(coresLost)
+            .append(", unaccounted ").append(in - outflow - held - coresLost).append(", frames off balance ").append(offBalance).append(" of ").append(frames);
         return out.toString();
     }
 }

@@ -53,6 +53,7 @@ tasks.jar{
     from(projectDir){
         include("mod.hjson")
         include("icon.png")
+        include("LICENSE")
     }
 
     from("assets/"){

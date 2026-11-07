@@ -231,9 +231,11 @@ public class DeepSignalMap{
         r.lighting = true;
         r.ambientLight = new Color(0.02f, 0.03f, 0.06f, 0.72f);
         r.spawns = waves();
-        //what the base costs, whichever way it is built: six dynamos and up to three fields (built with cores), the core line, the
-        //trunk, turrets or stabilizers; the cores a synchronization burns come from the core line (see the docs' economy)
-        r.loadout = ItemStack.list(ferroprism, 1600, conductiveScrap, 800, structuralAlloy, 1000, recoveredCircuit, 520, resonanceCrystal, 100, resonanceCore, 100);
+        //what the start of the base costs: the core line, the trunk, turrets or stabilizers, and the first dynamos; never a whole
+        //synchronization (its relays alone burn 45 cores at x1), nor the circuits the resonator eats (the assembler makes them), nor
+        //the crystal for more than a resonator and three pulse turrets (the extractors feed the resonator, not the core).
+        //The 0.7 loadout (1600/800/1000/520/100/100) let a base on combustion engines win on it alone (see the docs' audit)
+        r.loadout = ItemStack.list(ferroprism, 1600, conductiveScrap, 600, structuralAlloy, 850, recoveredCircuit, 480, resonanceCrystal, 80, resonanceCore, 30);
         r.blockWhitelist = true;
         r.hideBannedBlocks = true;
         r.bannedBlocks.addAll(transitBelt, cargoRouter, cargoJunction, cargoBridge, cargoUnloader, resonanceLink,

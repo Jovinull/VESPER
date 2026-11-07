@@ -13,6 +13,7 @@ import mindustry.gen.*;
 import mindustry.graphics.*;
 import mindustry.ui.*;
 import mindustry.world.*;
+import mindustry.world.blocks.power.*;
 import vesper.*;
 import vesper.content.*;
 import vesper.graphics.*;
@@ -102,17 +103,47 @@ public class SignalTerminal extends AncientSite{
         }
 
         /**
-         * Resonance cores a whole synchronization burns with no interruption: every relay's upkeep, and the energy of its
-         * power as a resonance dynamo delivers it. What a player should have in stock (or on the belts) before starting.
+         * Resonance cores a whole synchronization burns with no interruption: the relays' own upkeep and the power they
+         * draw from resonance dynamos. What a player should have in stock (or on the belts) before starting.
          */
         public int coresPerSync(){
+            return upkeepCores() + powerCores();
+        }
+
+        /** Cores the relays themselves burn in a whole synchronization, however they are powered. */
+        public int upkeepCores(){
+            float time = syncSeconds() * 60f, sum = 0f;
+            for(NodeBuild n : nodes()) sum += time / ((SignalNode)n.block).upkeepTime;
+            return Mathf.ceil(sum);
+        }
+
+        /**
+         * Cores the relays' power costs in a whole synchronization: the share of each relay's grid that resonance dynamos
+         * supply, at the energy a core holds. Combustion engines or the like cost none; a relay on no grid yet counts as
+         * dynamo-powered (the most it can cost).
+         */
+        public int powerCores(){
             float energy = VBlocks.resonanceDynamo instanceof ResonanceDynamo d ? d.powerProduction * d.itemDuration : 1500f;
             float time = syncSeconds() * 60f, sum = 0f;
-            for(NodeBuild n : nodes()){
-                SignalNode relay = (SignalNode)n.block;
-                sum += time / relay.upkeepTime + (relay.consPower == null ? 0f : relay.consPower.usage * time / energy);
-            }
+            for(NodeBuild n : nodes()) sum += dynamoShare(n) * ((SignalNode)n.block).powerUse * time / energy;
             return Mathf.ceil(sum);
+        }
+
+        /** Share of a relay's grid that its resonance dynamos would have to supply with the relays running. */
+        float dynamoShare(NodeBuild relay){
+            PowerGraph graph = relay.power.graph;
+            float dynamos = 0f, others = 0f, need = 0f;
+            for(Building b : graph.producers){
+                if(b instanceof ResonanceDynamo.ResonanceDynamoBuild) dynamos += ((ResonanceDynamo)b.block).powerProduction;
+                else others += b.getPowerProduction();
+            }
+            if(dynamos <= 0f) return others > 0f ? 0f : 1f;
+            for(Building b : graph.consumers){
+                if(b.block.consPower == null) continue;
+                //every relay counts at full power: the estimate is for the synchronization, with every relay on and running
+                need += b instanceof NodeBuild ? ((SignalNode)b.block).powerUse : b.block.consPower.requestedPower(b);
+            }
+            return need <= 0f ? 1f : Mathf.clamp((need - others) / need);
         }
 
         /** Seconds a whole synchronization takes at the basin's current resonance, with no interruption. */
@@ -175,7 +206,7 @@ public class SignalTerminal extends AncientSite{
             if(missing > 0) out.append("\n").append(Core.bundle.format("vesper.terminal.missing", missing, relays));
             out.append("\n\n").append(switch(syncState){
                 case idle -> (canStart() ? Core.bundle.get("vesper.terminal.ready") : Core.bundle.get("vesper.terminal.waiting")) + "\n"
-                    + Core.bundle.format("vesper.terminal.cost", (int)syncSeconds(), coresPerSync()) + "\n"
+                    + Core.bundle.format("vesper.terminal.cost", (int)syncSeconds(), coresPerSync(), upkeepCores(), powerCores()) + "\n"
                     + Core.bundle.format("vesper.terminal.resonance", Strings.fixed(rate(), 2));
                 case syncing -> Core.bundle.format("vesper.terminal.syncing", (int)(progress * 100f), (int)(checkpoint * 100f), interrupted > 0f
                     ? Core.bundle.format("vesper.terminal.interrupted", Strings.autoFixed(Math.max(0f, grace - interrupted) / 60f, 0)) : "") + "\n"

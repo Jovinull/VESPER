@@ -212,10 +212,20 @@ public class MissionSuite implements VesperHarness.Suite{
             //a construction site lost to a wave is rebuilt too, as a player would; only during the recovery, so the rest stays comparable
             bot.rebuild = true;
         });
-        phase(h, s, "rebuild the first forge and its drills from the core stock", () -> {
+        //what the raid took, by name: the forge's carbon can catch fire and burn the lines around it, which bot.rebuild queues too
+        //and the ferroprism income pays for over minutes, so waiting for an idle bot would measure the fire and not this rebuild
+        s.run(() -> {
             bot.build(structuralForge, 33, 22);
             for(int x : new int[]{37, 39, 41}) bot.build(surveyDrill, x, 23);
-        }, 180f);
+            h.line("phase: rebuild the first forge and its drills from the core stock (t=" + minutes() + ", core: " + coreSummary() + ")");
+        });
+        s.until("mission: rebuild the first forge and its drills from the core stock", () -> {
+            if(world.build(33, 22) == null || world.build(33, 22).block != structuralForge) return false;
+            for(int x : new int[]{37, 39, 41}){
+                if(world.build(x, 23) == null || world.build(x, 23).block != surveyDrill) return false;
+            }
+            return true;
+        }, 180f, () -> bot.status + ", t=" + minutes() + ", pending " + bot.pending() + ", lost so far " + lost);
         s.until("recovery: alloy production resumes", () -> state.stats.coreItemCount.get(structuralAlloy) >= alloyBeforeRecovery + 10
             && world.build(33, 22) != null && world.build(33, 22).block == structuralForge, 120f,
             () -> "alloy delivered since the raid: " + (state.stats.coreItemCount.get(structuralAlloy) - alloyBeforeRecovery));
@@ -267,7 +277,7 @@ public class MissionSuite implements VesperHarness.Suite{
         s.until("persistence: the awakening response arrives exactly once", () -> Vesper.activity.pending < 0f, 60f, null);
         s.wait(0.2f);
         s.check("mission: awakening response size", () -> state.enemies - enemiesBeforeIncursion == expectedIncursion,
-            () -> "spawned " + (state.enemies - enemiesBeforeIncursion) + ", expected " + expectedIncursion);
+            () -> "spawned " + (state.enemies - enemiesBeforeIncursion) + ", expected " + expectedIncursion + "; " + combat.snapshot());
         h.shot("mission-05-ancient-machines-emerge", 26, 80, 3f, true);
 
         // --- the end

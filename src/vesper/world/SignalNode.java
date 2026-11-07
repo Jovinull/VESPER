@@ -28,13 +28,16 @@ import static mindustry.Vars.*;
  * {@link #upkeepTime} ticks, paid when each period starts) to be operational. While the terminal synchronizes, every
  * node must stay operational: a resonance pulse that reaches a node (unless a containment field that absorbed it
  * covers the node), enemy fire on it (it jams for {@link #jamTime} ticks), lost power or no cores interrupt it.
+ * While the synchronization stands interrupted by another relay, a running relay waits, paying no upkeep (it stays powered).
  * The builders made it to last: it takes no damage and cannot be dismantled, and nothing can be taken out of it.
  * Working, it disturbs the basin, twice as much while synchronizing. The server decides every state; clients get
  * the transitions at once.
  */
 public class SignalNode extends Block{
     /** Ticks of operation one resonance core pays for; ticks a hit jams it; power share it needs to count as powered. */
-    public float upkeepTime = 30f * 60f, jamTime = 4f * 60f, minPower = 0.9f;
+    public float upkeepTime = 10f * 60f, jamTime = 4f * 60f, minPower = 0.9f;
+    /** Power it draws per tick (the same while it waits on another relay: a relay dropping its load would starve the grid it shares). */
+    public float powerUse = 2f;
     /** Activity while operational, and while operational during a synchronization. */
     public float operatingActivity = 4f, syncActivity = 8f;
     public Item fuel = VItems.resonanceCore;
@@ -68,6 +71,7 @@ public class SignalNode extends Block{
         envEnabled = Env.any;
 
         config(Boolean.class, (NodeBuild build, Boolean online) -> build.online = online);
+        consumePower(powerUse);
     }
 
     @Override
@@ -168,6 +172,12 @@ public class SignalNode extends Block{
                 : jammed > 0f ? NodeState.jammed : NodeState.interfered;
         }
 
+        /** The synchronization stands interrupted by another relay while this one runs: it waits, paying no upkeep. */
+        public boolean waiting(){
+            var t = terminal();
+            return t != null && t.syncState == SignalTerminal.SyncState.syncing && operational() && !t.allOperational();
+        }
+
         @Override
         public boolean shouldConsume(){
             return known() && online;
@@ -183,10 +193,11 @@ public class SignalNode extends Block{
             jammed = Math.max(0f, jammed - Time.delta);
             boolean was = alarm > 0.5f;
             if(known() && online && powered() && jammed <= 0f && !Vesper.activity.interferes(this)){
-                //pay first, so every tick of operation is paid for; a terminal that finished its work needs nothing more
+                //pay first, so every tick of operation is paid for; a terminal that finished its work needs nothing more, and while
+                //the synchronization stands interrupted by another relay the handshake waits: nothing is burned for no progress
                 var t = terminal();
                 boolean done = t != null && t.syncState == SignalTerminal.SyncState.synced;
-                if(!done){
+                if(!done && !waiting()){
                     if(upkeep <= 0f && items.has(fuel)){
                         items.remove(fuel, 1);
                         coresSpent++;

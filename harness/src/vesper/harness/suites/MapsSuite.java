@@ -12,6 +12,7 @@ import mindustry.gen.*;
 import mindustry.io.*;
 import mindustry.maps.Map;
 import mindustry.world.*;
+import vesper.*;
 import vesper.content.*;
 import vesper.harness.*;
 import vesper.harness.maps.*;
@@ -151,6 +152,89 @@ public class MapsSuite implements VesperHarness.Suite{
         h.shot("deep-05-east-relay", 103, 45, 2.5f, false);
         h.shot("deep-06-north-relay", 60, 80, 2f, false);
         h.shot("deep-07-breach", 100, 84, 2f, false);
+
+        s.run(() -> {
+            logic.reset();
+            world.loadGenerator(CentralControlMap.width, CentralControlMap.height, CentralControlMap::generate);
+            state.rules = CentralControlMap.rules();
+            CentralControlMap.addMarkers();
+            logic.play();
+        });
+        s.wait(0.3f);
+        s.run(() -> {
+            save(h, "central-control", CentralControlMap.tags());
+            dump(h.out.child("maps").child("central-control-tiles.txt"));
+            checkCentral(h);
+            noAncientDeconstruction(h, "control map");
+        });
+        s.run(() -> state.rules.waveTimer = false);
+        h.shot("control-01-bay", 70, 13, 2f, false);
+        h.shot("control-02-chamber", 70, 49, 2f, false);
+        h.shot("control-03-conduction", 21, 48, 2f, false);
+        h.shot("control-04-processing", 118, 48, 2f, false);
+        h.shot("control-05-corridor", 70, 76, 2f, false);
+        h.shot("control-06-breach", 70, 91, 2f, false);
+    }
+
+    static void checkCentral(VesperHarness h){
+        Team player = CentralControlMap.player;
+        h.check("control map: every decoration and seam fits the terrain", CentralControlMap.skipped.isEmpty(), "skipped: " + CentralControlMap.skipped);
+        h.check("control map: one player core, one ground spawn", player.data().cores.size == 1 && spawner.countSpawns() == 1,
+            "cores " + player.data().cores.size + ", spawns " + spawner.countSpawns());
+        var controllers = player.data().getBuildings(VBlocks.centralController);
+        h.check("control map: the controller, the junction, both subsystems and three locks, the player's, the controller unexplored", controllers.size == 1
+            && controllers.first() instanceof vesper.world.ProtocolController.ControllerBuild c && c.siteState == vesper.world.AncientSite.SiteState.unexplored
+            && player.data().getBuildings(VBlocks.distributionJunction).size == 1 && player.data().getBuildings(VBlocks.conductionArray).size == 1
+            && player.data().getBuildings(VBlocks.processingLine).size == 1 && player.data().getBuildings(VBlocks.containmentLock).size == 3, "");
+        h.check("control map: only the core and the complex are the player's", player.data().buildings.size == 8, player.data().buildings.size + " player buildings");
+        h.check("control map: the locks cannot be deconstructed and take no fire", player.data().getBuildings(VBlocks.containmentLock).allMatch(b -> !Build.validBreak(player, b.tileX(), b.tileY()))
+            && !VBlocks.containmentLock.targetable, "");
+        Tile core = player.core().tile;
+        Tile spawn = spawner.getSpawns().first();
+        h.check("control map: ground path breach -> core", reachable(spawn, core), "from " + spawn.x + "," + spawn.y);
+        var gates = Vesper.activity.gates();
+        h.check("control map: three vents", gates.size == 3, "gates " + gates.size);
+        for(Tile gate : gates){
+            h.check("control map: vent " + gate.x + "," + gate.y + " open, connected to the core, under its lock", !gate.solid() && reachable(gate, core)
+                && vesper.world.ContainmentLock.over(gate) != null, "");
+        }
+        //both wings reach the chamber and the bay (the technical galleries and the doorways)
+        Tile array = world.tile(CentralControlMap.arrayX + 1, CentralControlMap.arrayY + 1), line = world.tile(CentralControlMap.lineX + 1, CentralControlMap.lineY + 1);
+        Tile bay = world.tile(CentralControlMap.coreX, CentralControlMap.coreY + 4);
+        h.check("control map: both subsystems reachable from the bay on foot", reachable(bay, array) && reachable(bay, line), "");
+        //room for a survey rig within reach of the controller
+        h.check("control map: room for a survey rig beside the controller", Build.validPlace(VBlocks.surveyRig, player, CentralControlMap.controllerX + 6, CentralControlMap.controllerY + 1, 0), "");
+        //the pulses land on the working resonance machine nearest an open vent: each side vent has its subsystem as the nearest of the two
+        float arrayNw = Mathf.dst(CentralControlMap.arrayX + 1.5f, CentralControlMap.arrayY + 1.5f, gates.get(0).x, gates.get(0).y),
+            lineNe = Mathf.dst(CentralControlMap.lineX + 1.5f, CentralControlMap.lineY + 1.5f, gates.get(2).x, gates.get(2).y),
+            lineNw = Mathf.dst(CentralControlMap.lineX + 1.5f, CentralControlMap.lineY + 1.5f, gates.get(0).x, gates.get(0).y);
+        h.check("control map: the array sits under the north-west vent and the line under the north-east one", arrayNw < lineNw && lineNe < lineNw,
+            "array-nw " + Strings.fixed(arrayNw, 1) + ", line-ne " + Strings.fixed(lineNe, 1));
+        for(Block ore : new Block[]{VBlocks.oreFerroprism, VBlocks.oreVitreousCarbon, VBlocks.oreConductiveScrap}){
+            int count = 0;
+            for(Tile t : world.tiles){
+                if(t.overlay() == ore && t.block() == Blocks.air && t.within(core, 22 * tilesize)) count++;
+            }
+            h.check("control map: starting " + ore.name + " near the core", count >= 16, count + " tiles");
+        }
+        int crystal = 0, scrap = 0, carbon = 0;
+        for(Tile t : world.tiles){
+            if(t.block() != Blocks.air) continue;
+            if(t.overlay() == VBlocks.oreResonanceCrystal && t.x >= 103) crystal++;
+            if(t.overlay() == VBlocks.oreConductiveScrap && t.x >= 103) scrap++;
+            if(t.overlay() == VBlocks.oreVitreousCarbon && t.x <= 37 && t.y >= 28) carbon++;
+        }
+        h.check("control map: the processing hall has crystal and scrap for the line (three drills of each)", crystal >= 12 && scrap >= 12, crystal + " crystal, " + scrap + " scrap");
+        h.check("control map: the conduction gallery has carbon for six engines", carbon >= 24, carbon + " carbon tiles");
+        int cyan = 0, amber = 0;
+        for(Tile t : world.tiles){
+            if(t.floor() == VBlocks.containmentConduit) cyan++;
+            if(t.floor() == VBlocks.recoveryConduit) amber++;
+        }
+        h.check("control map: the two buses are laid in the floor (containment and recovery conduits)", cyan > 100 && amber > 100, cyan + " cyan, " + amber + " amber");
+        h.check("control map: the complex is dark (lighting on), a Chapter Two scenario with the response and the archaeology tag", state.rules.lighting
+            && vesper.mission.CentralControl.scenarioId.equals(state.rules.tags.get(vesper.mission.FirstAwakening.tagScenario))
+            && state.rules.tags.getBool(vesper.world.AncientSite.tagEnabled) && state.rules.tags.getBool(vesper.systems.PlanetaryActivity.tagResponse), "");
     }
 
     /** The tiles the reference layout builds the core logistics on: the unloader over the core, the trunk up the shaft, the hub and three branches. */

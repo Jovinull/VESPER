@@ -55,7 +55,9 @@ public class MultiplayerHost implements VesperHarness.Suite{
     boolean holding;
     /** Fixture: while true the server keeps the relay world's relays in cores during the synchronization (what belts would bring). */
     boolean relayFeed;
-    int syncEvents;
+    /** Fixture: while true the server keeps the control world's dynamos, controller and line supplied (what belts would bring). */
+    boolean controlFeed;
+    int syncEvents, reactivations;
     /** Bottom-left tiles of the test stabilizer and extractors near the Resonance Fault core (sheltered crystal vein). */
     public static final int stabilizerX = 24, stabilizerY = 22;
     public static final int[][] faultExtractors = {{31, 25}, {33, 25}, {33, 27}}, faultSinks = {{30, 25}, {35, 25}, {35, 27}};
@@ -73,6 +75,20 @@ public class MultiplayerHost implements VesperHarness.Suite{
                 }
             });
             Events.on(vesper.world.SignalTerminal.SyncEvent.class, e -> syncEvents++);
+            Events.on(vesper.world.ProtocolController.ReactivationEvent.class, e -> reactivations++);
+            Events.run(EventType.Trigger.update, () -> {
+                if(!controlFeed || !state.isPlaying() || !(Worlds.at(ControlSuite.lineX, ControlSuite.lineY, 4) instanceof vesper.world.ProtocolSite.ProtocolSiteBuild line)) return;
+                for(int i = 0; i < 3; i++){
+                    var d = ControlSuite.dynamo(i);
+                    if(d != null && d.items.get(resonanceCore) < 5) d.items.add(resonanceCore, 5);
+                }
+                var c = ControlSuite.controller();
+                if(c != null && c.items.get(resonanceCore) < 10) c.items.add(resonanceCore, 10);
+                if(line.siteState == vesper.world.AncientSite.SiteState.restored){
+                    if(line.items.get(conductiveScrap) < 6) line.items.add(conductiveScrap, 12);
+                    if(line.items.get(resonanceCrystal) < 2) line.items.add(resonanceCrystal, 4);
+                }
+            });
         }
         s.run(() -> {
             //the harness keeps the world after game over (no map rotation), so the victory and defeat checks can follow
@@ -708,6 +724,155 @@ public class MultiplayerHost implements VesperHarness.Suite{
         s.run(() -> {
             for(Player p : Groups.player) Call.clientPacketReliable(p.con, packet, "shot:mp-deep-victory");
             relayFeed = false;
+        });
+        s.wait(2f);
+
+        // --- 0.8: Central Control's protocol routing, in the purpose-built control world (another map change)
+        s.run(() -> {
+            reactivations = 0;
+            WorldReloader reloader = new WorldReloader();
+            reloader.begin();
+            Rules rules = new Rules();
+            rules.waves = false;
+            rules.waveTimer = false;
+            rules.canGameOver = false;
+            rules.loadout.clear();
+            rules.tags.put(FirstAwakening.tagScenario, vesper.mission.CentralControl.scenarioId);
+            rules.tags.put(vesper.systems.PlanetaryActivity.tagEnabled, "true");
+            rules.tags.put(vesper.world.AncientSite.tagEnabled, "true");
+            world.loadGenerator(ControlSuite.width, ControlSuite.height, ControlSuite::generate);
+            state.rules = rules;
+            logic.play();
+            reloader.end();
+        });
+        s.until("mp: both clients follow the change to the control world", () -> Groups.player.count(p -> p.unit() != null && !p.dead()) >= 2, 120f, null);
+        s.wait(1f);
+        //test setup: the survey done, the dynamos fuelled, cores in the controller, the junction's materials in
+        s.run(() -> {
+            ControlSuite.controller().investigate(1f);
+            controlFeed = true;
+        });
+        //the junction opens for its materials on its own next update, once the controller is known
+        s.waitFor(() -> ControlSuite.junction().siteState == vesper.world.AncientSite.SiteState.restoring, 5f);
+        s.run(() -> {
+            var j = ControlSuite.junction();
+            j.handleStack(structuralAlloy, 80, null);
+            j.handleStack(recoveredCircuit, 40, null);
+            NetServer.syncBuilding(ControlSuite.controller());
+            NetServer.syncBuilding(j);
+        });
+        s.wait(3f);
+        //two clients pick a different mode at the same moment: the server applies them in the order they arrive; everyone ends on the same one
+        s.run(() -> {
+            send(first(), "cc-mode:0");
+            send(second(), "cc-mode:2");
+        });
+        s.wait(3f);
+        ask(h, s, "cc-modes");
+        expect(h, s, "mp: two clients switch the routing at once; both end on the server's mode", a -> a.get("ccMode").equals(ControlSuite.controller().mode.name())
+            && a.get("controller").equals("investigated"));
+        s.check("mp: the server took one of the two (never a third value), with both changes counted", () -> (ControlSuite.controller().mode == vesper.world.ProtocolController.Mode.containment
+            || ControlSuite.controller().mode == vesper.world.ProtocolController.Mode.recovery) && ControlSuite.controller().modeChanges >= 1, () -> ControlSuite.routing());
+        //a mode change while the junction is being restored: the work goes on, at the new split
+        s.run(() -> send(first(), "cc-mode:1"));
+        s.wait(3f);
+        s.check("mp: a client's mode change during a restoration: the server applies it and the work goes on", () -> ControlSuite.controller().mode == vesper.world.ProtocolController.Mode.balanced
+            && ControlSuite.junction().work > 0f, () -> ControlSuite.routing() + " | " + ControlSuite.siteStates());
+        //save and load on the server in the middle of a swing
+        s.run(() -> send(second(), "cc-mode:0"));
+        s.wait(1f);
+        s.run(() -> {
+            Fi file = h.out.child("mp-control.msav");
+            SaveIO.save(file);
+            savedSnapshot = ControlSuite.saved();
+            WorldReloader reloader = new WorldReloader();
+            reloader.begin();
+            SaveIO.load(file);
+            state.rules.sector = null;
+            state.set(State.playing);
+            reloader.end();
+            h.line("mp: the control world saved and reloaded on the server mid-swing: " + savedSnapshot);
+            h.check("mp: the routing, the locks and the sites survive save and load on the server mid-swing", ControlSuite.saved().equals(savedSnapshot),
+                "before " + savedSnapshot + ", after " + ControlSuite.saved());
+        });
+        s.until("mp: both clients are back in the control world", () -> Groups.player.count(p -> p.unit() != null && !p.dead()) >= 2, 120f, null);
+        s.wait(2f);
+        ask(h, s, "cc-reloaded");
+        expect(h, s, "mp: after the reload both clients see the server's mode and the junction's work", a -> a.get("ccMode").equals("containment")
+            && a.get("junction").equals(ControlSuite.junction().siteState.name()));
+        s.until("mp: the junction is restored on the server", () -> ControlSuite.controller().access(), 90f, ControlSuite::siteStates);
+        //a lock switched off by a client; the subsystems restored (test setup: their materials and work), the vents shut once
+        s.run(() -> send(first(), "cc-lock:0:off"));
+        s.until("mp: a client switches a lock off; the server applies it", () -> !ControlSuite.lock(0).online, 15f, ControlSuite::lockStates);
+        s.wait(2f);
+        ask(h, s, "cc-lock-off");
+        expect(h, s, "mp: both clients see the lock switched off and open", a -> a.get("ccLocks").startsWith("off"));
+        s.run(() -> send(second(), "cc-lock:0:on"));
+        s.until("mp: the other client switches it back on; the vents close", () -> ControlSuite.controller().contained(), 30f, ControlSuite::lockStates);
+        s.run(() -> {
+            var arr = ControlSuite.array();
+            var line = ControlSuite.line();
+            for(var site : new vesper.world.ProtocolSite.ProtocolSiteBuild[]{arr, line}){
+                for(var stack : ((vesper.world.ProtocolSite)site.block).restoration) site.handleStack(stack.item, stack.amount, null);
+            }
+            arr.work(1e6f);
+            line.work(1e6f);
+        });
+        s.until("mp: both subsystems restored on the server", () -> ControlSuite.controller().restored(), 15f, ControlSuite::siteStates);
+        s.wait(2f);
+        //a delivery after a restoration buys nothing: the site takes no more
+        s.check("mp: a restored site takes no more materials (nothing to pay twice)", () -> !ControlSuite.array().acceptItem(null, structuralAlloy)
+            && ControlSuite.array().acceptStack(structuralAlloy, 10, null) == 0, () -> ControlSuite.siteStates());
+        //both clients press start at once: one sequence
+        s.run(() -> {
+            send(first(), "cc-start");
+            send(second(), "cc-start");
+        });
+        s.until("mp: the sequence starts once on the server", () -> ControlSuite.controller().sequence == vesper.world.ProtocolController.Sequence.running, 15f, ControlSuite::routing);
+        s.wait(5f);
+        ask(h, s, "cc-running");
+        expect(h, s, "mp: both clients see the sequence running near the server's progress", a -> a.get("ccSequence").equals("running")
+            && Math.abs(Strings.parseFloat(a.get("ccProgress"), -1f) - ControlSuite.controller().progress) < 0.04f);
+        //fuel cut: the controller's store emptied on the server; recovery stops and says why on every side
+        s.run(() -> {
+            controlFeed = false;
+            var c = ControlSuite.controller();
+            c.items.clear();
+            c.paid = 0f;
+            NetServer.syncBuilding(c);
+        });
+        s.wait(3f);
+        ask(h, s, "cc-no-cores");
+        expect(h, s, "mp: with the controller out of cores both clients see the sequence stand still for want of cores", a -> a.get("ccReason").equals("cores"));
+        s.run(() -> controlFeed = true);
+        s.run(() -> send(second(), "disconnect"));
+        s.until("mp: a client drops out during the sequence", () -> Groups.player.size() == 1, 30f, null);
+        s.until("mp: it comes back", () -> Groups.player.count(p -> p.unit() != null && !p.dead()) >= 2, 120f, null);
+        s.wait(2f);
+        ask(h, s, "cc-rejoined");
+        expect(h, s, "mp: the reconnected client sees the server's sequence and mode", a -> a.get("ccSequence").equals("running")
+            && Math.abs(Strings.parseFloat(a.get("ccProgress"), -1f) - ControlSuite.controller().progress) < 0.04f && a.get("ccMode").equals(ControlSuite.controller().mode.name()));
+        //auxiliary infrastructure lost: a dynamo destroyed on the server; both see the power the controller gets now
+        s.run(() -> ControlSuite.dynamo(2).kill());
+        s.wait(3f);
+        ask(h, s, "cc-dynamo-lost");
+        expect(h, s, "mp: after a dynamo is destroyed both clients still see the server's sequence and mode", a -> a.get("ccSequence").equals("running")
+            && a.get("ccMode").equals(ControlSuite.controller().mode.name()));
+        //the completion with both clients connected (test setup: the progress advanced)
+        s.run(() -> {
+            ControlSuite.controller().progress = 0.995f;
+            NetServer.syncBuilding(ControlSuite.controller());
+        });
+        s.until("mp: the server completes the reactivation and declares Central Control won, once", () -> h.lastWinner == state.rules.defaultTeam
+            && ControlSuite.controller().sequence == vesper.world.ProtocolController.Sequence.complete, 60f, ControlSuite::routing);
+        s.wait(2f);
+        s.check("mp: the complex was reactivated once on the server", () -> reactivations == 1, () -> reactivations + " reactivations");
+        ask(h, s, "cc-victory");
+        expect(h, s, "mp: both clients see the complex reactivated and the victory", a -> a.get("ccSequence").equals("complete") && a.get("ccVictory").equals("true")
+            && a.get("gameover").equals("true") && a.get("won").equals("true"));
+        s.run(() -> {
+            for(Player p : Groups.player) Call.clientPacketReliable(p.con, packet, "shot:mp-control-victory");
+            controlFeed = false;
         });
         s.wait(2f);
 

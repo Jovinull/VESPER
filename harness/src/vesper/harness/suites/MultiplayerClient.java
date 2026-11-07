@@ -122,6 +122,18 @@ public class MultiplayerClient implements VesperHarness.Suite{
             h.line("mp client " + name + ": rebuilding the field from the team's plan at " + p[0] + "," + p[1] + " (" + p[2] + ")");
             bot.active = true;
             bot.build(VBlocks.containmentField, Strings.parseInt(p[0]), Strings.parseInt(p[1]), 0, Boolean.parseBoolean(p[2]));
+        }else if(data.startsWith("cc-mode:")){
+            //a tap on one of the controller's mode buttons
+            var c = ControlSuite.controller();
+            if(c != null) c.configure(Strings.parseInt(data.substring(8), 1));
+        }else if(data.startsWith("cc-lock:")){
+            //cc-lock:<index>:<on|off>, as a player's tap on the lock
+            String[] p = data.substring(8).split(":");
+            var l = ControlSuite.lock(Strings.parseInt(p[0], 0));
+            if(l != null) l.configure(p[1].equals("on"));
+        }else if(data.equals("cc-start")){
+            var c = ControlSuite.controller();
+            if(c != null) c.configure(true);
         }else if(data.equals("disconnect")){
             h.line("mp client " + name + ": dropping out");
             netClient.disconnectQuietly();
@@ -166,7 +178,21 @@ public class MultiplayerClient implements VesperHarness.Suite{
             + ";worksVictory=" + Vesper.works.victory + ";worksObjective=" + (Vesper.works.current() == null ? "done" : Vesper.works.current().key)
             + ";unloaderItem=" + (world.build(13, 11) instanceof mindustry.world.blocks.storage.Unloader.UnloaderBuild u && u.sortItem != null ? u.sortItem.name : "-")
             + ";logisticsBurned=" + (Worlds.at(18, 10, 3) instanceof vesper.world.ResonanceDynamo.ResonanceDynamoBuild d ? d.coresBurned : -1)
-            + ";deep=" + Vesper.deep.active() + ";" + deepView();
+            + ";deep=" + Vesper.deep.active() + ";" + deepView() + ";" + controlView();
+    }
+
+    /** The control world as this client sees it: the controller's state, mode and sequence, every lock, the sites, the reason recovery stands, the victory. */
+    static String controlView(){
+        var c = ControlSuite.controller();
+        if(c == null || !Vesper.central.active() || !(Worlds.at(ControlSuite.lineX, ControlSuite.lineY, 4) instanceof vesper.world.ProtocolSite.ProtocolSiteBuild)) return "controller=-";
+        StringBuilder locks = new StringBuilder();
+        for(int i = 0; i < 3; i++){
+            var l = ControlSuite.lock(i);
+            locks.append(i == 0 ? "" : ",").append(!l.online ? "off" : l.sealed() ? "sealed" : "open");
+        }
+        String reason = c.reason() == null ? "none" : c.reason().equals(Core.bundle.get("vesper.protocol.reason.cores")) ? "cores" : "other";
+        return "controller=" + c.siteState.name() + ";ccMode=" + c.mode.name() + ";ccSequence=" + c.sequence.name() + ";ccProgress=" + Strings.fixed(c.progress, 3)
+            + ";ccLocks=" + locks + ";junction=" + ControlSuite.junction().siteState.name() + ";ccReason=" + reason + ";ccVictory=" + Vesper.central.victory;
     }
 
     /** The relay world as this client sees it: the terminal's state and progress, every relay's state, the victory. */

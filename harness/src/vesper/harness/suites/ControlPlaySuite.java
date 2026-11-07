@@ -46,8 +46,13 @@ import static vesper.content.VItems.*;
  * <li><b>economic</b> (diagnostic): the common base with the smallest core line (the resonator and its extractors on the
  * processing hall's two engines, its circuits carried by the unit: no forge or assembler in the hall), played to spare
  * cores: the line's materials first, balanced (never overdriven), the locks only for the objective and while something is
- * announced. Without any core line, 20 loadout cores paid the junction and the processing line, and the line the rest.</li>
+ * announced. Expected to lose: no forge or assembler for the resonator starves it of circuits. With a loadout of 20
+ * cores and no core line at all it was the fastest base, which is why the loadout has 6.</li>
+ * <li><b>nocore</b> (diagnostic): the same with no core line at all, on the loadout's 6 cores. Expected to lose: they pay
+ * the junction and half of the processing line, and nothing else makes a core.</li>
  * </ul>
+ * The opportunists are exploratory: what they get is recorded, not judged. The expected defeats check their claim, and
+ * fail if the strategy wins; what they do on the way is recorded. Conservation is checked whatever the result.
  * Each strategy must reach the native victory (a game over in a custom game, the sector's capture in the campaign);
  * the suite reports what each got and paid: the time, the protocols' cores, the locks' and the line's, the routing
  * changes, the sequence's stalls, the level, pulses (landed and held back) and patrols (and held back), losses and the
@@ -60,6 +65,8 @@ public class ControlPlaySuite implements VesperHarness.Suite{
     final Ledger ledger = new Ledger();
     final ObjectIntMap<String> lost = new ObjectIntMap<>();
     boolean listening, routing, carrying;
+    /** Spends its cores carefully on a base with little or no core line; expected to lose. */
+    final boolean lean, exploratory;
     float ticks, sampleTimer, levelSum, maxLevel, surveyedAt, sequenceAt, sequenceEnd, wireTimer;
     int switches, relinked;
     /** The links laid so far, laid again by {@link #tendLinks()}. */
@@ -70,6 +77,8 @@ public class ControlPlaySuite implements VesperHarness.Suite{
         this.mode = mode;
         this.campaign = campaign;
         tag = "control-" + mode;
+        lean = mode.equals("economic") || mode.equals("nocore");
+        exploratory = mode.startsWith("opportunist");
     }
 
     public ControlPlaySuite(String mode){
@@ -130,6 +139,7 @@ public class ControlPlaySuite implements VesperHarness.Suite{
         s.check(tag + ": starting loadout", () -> core(ferroprism) == 1500 && core(resonanceCore) == 6 && core(recoveredCircuit) == 240 && core(structuralAlloy) == 400
             && core(resonanceCrystal) == 40, () -> coreSummary());
         s.run(ledger::begin);
+        s.soft = lean || exploratory;
 
         // --- defense: drill-fed turrets in the bay and at the chamber's north passage (where the waves come down)
         phase(h, s, "drill-fed turrets in the bay and at the chamber's north passage", () -> {
@@ -202,7 +212,7 @@ public class ControlPlaySuite implements VesperHarness.Suite{
 
         // --- the processing hall's core line (as in the Underworks), on its own engines and the chain; the economic one keeps only the
         //engines, and the unit carries its resonator's circuits (see supplyResonator)
-        if(mode.equals("economic")) phase(h, s, "two engines on the processing hall's carbon", () -> {
+        if(lean) phase(h, s, "two engines on the processing hall's carbon", () -> {
             bot.build(surveyDrill, 106, 38);
             bot.build(combustionEngine, 106, 40);
             bot.build(combustionEngine, 104, 38);
@@ -219,7 +229,7 @@ public class ControlPlaySuite implements VesperHarness.Suite{
             bot.build(scrapCollector, 110, 34);
             bot.build(scrapCollector, 110, 36);
         }, 480f);
-        phase(h, s, "the resonator, its crystal extractors and belt, the core belt to the controller", () -> {
+        if(!mode.equals("nocore")) phase(h, s, "the resonator, its crystal extractors and belt, the core belt to the controller", () -> {
             bot.build(experimentalResonator, 115, 34);
             for(int x : new int[]{121, 123, 125}) bot.build(crystalExtractor, x, 32);
             bot.line(transitBelt, 118, 34, 126, 34, 2);
@@ -289,7 +299,7 @@ public class ControlPlaySuite implements VesperHarness.Suite{
         }
 
         // --- the subsystems: their materials carried from the core as the industry makes them; the recovery protocol restores them
-        s.until(tag + ": both subsystems restored", () -> controller().restored() && Vesper.central.completed >= 4, 1800f,
+        s.until(tag + ": both subsystems restored", () -> controller().restored() && Vesper.central.completed >= 4, mode.equals("nocore") ? 600f : 1800f,
             () -> ControlSuite.siteStatesOf(controller()) + " | " + ControlSuite.routingOf(controller()) + " | core " + coreSummary());
         s.run(() -> ledger.mark("subsystems restored"));
         //the containment objective: every lock on until every vent is shut once (the routing hook goes back to the strategy after)
@@ -304,7 +314,7 @@ public class ControlPlaySuite implements VesperHarness.Suite{
         s.until(tag + ": the reactivation sequence starts", () -> controller().sequence != ProtocolController.Sequence.idle, 30f, () -> ControlSuite.routingOf(controller()));
         h.shot(tag + "-01-chamber", 70, 50, 2f, true);
 
-        s.step(d -> won(h) || h.lastWinner != null || ticks - sequenceAt > 40f * 60f * 60f);
+        s.step(d -> won(h) || h.lastWinner != null || ticks - sequenceAt > (mode.equals("nocore") ? 1f : 40f) * 60f * 60f);
         s.until(tag + (campaign ? ": VICTORY - the game captures the Central Control sector" : ": VICTORY - the game declares Central Control won"), () -> won(h), 1f,
             () -> ControlSuite.routingOf(controller()) + " | objectives " + Vesper.central.completed + ", core "
                 + (state.rules.defaultTeam.core() == null ? "lost" : (int)state.rules.defaultTeam.core().health + " hp"));
@@ -312,6 +322,12 @@ public class ControlPlaySuite implements VesperHarness.Suite{
             && Vesper.central.completed == 6, () -> "");
         if(!campaign) s.check(tag + ": a custom game's victory leaves the campaign alone", () -> !Chapter.secured(VSectors.centralControl) && state.rules.sector == null
             && !Chapter.Record.partialReactivation.found(), () -> "");
+        s.soft = false;
+        if(mode.equals("economic")) s.check(tag + ": EXPECTED DEFEAT: a resonator with no forge or assembler behind it starves of circuits and the complex is not reactivated",
+            () -> !won(h) && controller().sequence != ProtocolController.Sequence.complete, () -> "won " + won(h) + ", t=" + minutes() + ", " + ControlSuite.siteStatesOf(controller()));
+        if(mode.equals("nocore")) s.check(tag + ": EXPECTED DEFEAT: the loadout's 6 cores pay the junction and half of the processing line, and nothing else makes a core",
+            () -> !won(h) && controller().access() && !controller().restored() && controller().items.get(resonanceCore) == 0 && core(resonanceCore) == 0,
+            () -> "won " + won(h) + ", controller store " + controller().items.get(resonanceCore) + ", " + ControlSuite.siteStatesOf(controller()));
         s.run(() -> {
             sequenceEnd = ticks;
             var c = controller();
@@ -333,6 +349,7 @@ public class ControlPlaySuite implements VesperHarness.Suite{
             ledger.mark("victory");
             h.line("info: " + tag + " ledger: " + ledger.report());
             for(var m : ledger.marks) h.line("info: " + tag + " at " + m.key + ": " + m.value);
+            h.check(tag + ": every resonance core is accounted for, on every frame", ledger.residual() == 0 && ledger.offBalance == 0, ledger.balance());
             ledger.active = false;
         });
         h.shot(tag + "-02-victory", 70, 50, 2f, true);
@@ -381,7 +398,7 @@ public class ControlPlaySuite implements VesperHarness.Suite{
                 want = Mode.balanced;
                 locks = true;
             }
-            case "economic" -> {
+            case "economic", "nocore" -> {
                 //never overdriven (the overdrive pays 1.5 cores for 1.4 times the work); the locks only when they are needed
                 want = Mode.balanced;
                 locks = threat || objective;
@@ -444,8 +461,8 @@ public class ControlPlaySuite implements VesperHarness.Suite{
         if(!carrying || !bot.active || !state.isPlaying() || bot.delivering() || !bot.idle()) return;
         var c = controller();
         if(c == null) return;
-        //the economic one brings the line's materials before the array's: the line makes the cores the rest needs
-        for(ProtocolSiteBuild site : mode.equals("economic") ? c.sites().copy().sort(b -> b.block == processingLine ? 0 : b.block == distributionJunction ? -1 : 1) : c.sites()){
+        //the lean ones bring the line's materials before the array's: the line makes the cores the rest needs
+        for(ProtocolSiteBuild site : lean ? c.sites().copy().sort(b -> b.block == processingLine ? 0 : b.block == distributionJunction ? -1 : 1) : c.sites()){
             if(site.siteState != SiteState.restoring || site.ready()) continue;
             for(ItemStack stack : ((ProtocolSite)site.block).restoration){
                 int need = site.remaining(stack.item);

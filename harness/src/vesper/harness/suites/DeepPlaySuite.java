@@ -31,11 +31,16 @@ import static vesper.content.VItems.*;
  * resonance dynamo powering it; a survey rig at the terminal, supplied by the bot's unit. Then one of three strategies:
  * <ul>
  * <li><b>stable</b>: three stabilizers, each on a combustion engine and a carbon drill of its own, keep the basin under the pulse level;</li>
- * <li><b>intensive</b>: nothing holds the basin down; a pulse turret at every relay for what climbs out of the vents;</li>
+ * <li><b>intensive</b>: nothing holds the basin down; a pulse turret at every relay for what climbs out of the vents. It
+ * starts on three quarters of what the terminal asks, counting on its factory: when the network runs dry it taps the
+ * relays off, so their dynamos stop burning what the factory makes, and back on once the network holds what is left
+ * (see {@link #pace}). <b>intensive-naive</b> is the same base never pausing, an exploratory run: it stays stuck at the
+ * last quarter or scrapes through, and what it gets is recorded, not judged;</li>
  * <li><b>redundant</b>: one stabilizer (on its own engine and drill), and at every relay a containment field (fed by the
  * relay's routers) and a power accumulator.</li>
  * </ul>
- * Two diagnostic strategies of the economy audit (not in the headless list: they look for a way around the industry):
+ * Two strategies of the economy audit, expected to lose (not in the headless list: they look for a way around the
+ * industry). What they do on the way is recorded as an outcome; the suite fails if the hypothesis does not hold:
  * <ul>
  * <li><b>economic</b>: the least infrastructure: no core line, no dynamo, no unloader. Six carbon drills feed six
  * combustion engines in the fabrication hall; a chain of resonance links carries their power to the survey rig and
@@ -57,10 +62,13 @@ public class DeepPlaySuite implements VesperHarness.Suite{
     final Ledger ledger = new Ledger();
     /** Whether this strategy builds the core line, and powers the relays (and the rig) with resonance dynamos. */
     final boolean factory, dynamos;
+    /** What its result means: must win, must lose (the claim is checked), or recorded as it falls. */
+    final boolean expectDefeat, exploratory;
     final ObjectIntMap<String> lost = new ObjectIntMap<>();
     boolean listening, carrying;
     float ticks, sampleTimer, levelSum, maxLevel, syncStart, syncEnd, onlineAt, slipped, lastProgress;
-    int pulsesSeen, pulsesAtSync, patrolsAtSync, coresAtOnline, interruptionsSeen, stockAtOnline;
+    int pulsesSeen, pulsesAtSync, patrolsAtSync, coresAtOnline, interruptionsSeen, stockAtOnline, pauses;
+    boolean paused;
 
     /** @param mode stable, intensive or redundant */
     public DeepPlaySuite(String mode, boolean campaign){
@@ -69,6 +77,8 @@ public class DeepPlaySuite implements VesperHarness.Suite{
         tag = "deep-" + mode;
         factory = !mode.equals("economic") && !mode.equals("minimal");
         dynamos = !mode.equals("economic");
+        expectDefeat = !factory;
+        exploratory = mode.equals("intensive-naive");
     }
 
     public DeepPlaySuite(String mode){
@@ -87,6 +97,7 @@ public class DeepPlaySuite implements VesperHarness.Suite{
             //circuits for the survey rig, and cores for the economic base's relays, as a player carries them
             Events.run(Trigger.update, this::supplyRig);
             Events.run(Trigger.update, this::supplyRelays);
+            Events.run(Trigger.update, this::pace);
             Events.on(BlockDestroyEvent.class, e -> {
                 if(bot.active && e.tile.team() == state.rules.defaultTeam) lost.increment(e.tile.block().name);
             });
@@ -114,9 +125,9 @@ public class DeepPlaySuite implements VesperHarness.Suite{
 
         s.run(() -> {
             lost.clear();
-            carrying = false;
+            carrying = paused = false;
             ticks = levelSum = maxLevel = sampleTimer = syncStart = syncEnd = onlineAt = slipped = lastProgress = 0f;
-            pulsesSeen = pulsesAtSync = patrolsAtSync = coresAtOnline = interruptionsSeen = 0;
+            pulsesSeen = pulsesAtSync = patrolsAtSync = coresAtOnline = interruptionsSeen = pauses = 0;
             if(!campaign) Worlds.play(Worlds.bundled(ContentSuite.deepName), Gamemode.survival);
             bot.active = true;
             bot.rebuild = true;
@@ -131,6 +142,7 @@ public class DeepPlaySuite implements VesperHarness.Suite{
         s.check(tag + ": starting loadout", () -> core(ferroprism) == 1600 && core(resonanceCore) == 30 && core(recoveredCircuit) == 480 && core(structuralAlloy) == 850
             && core(resonanceCrystal) == 80 && core(conductiveScrap) == 600, () -> coreSummary());
         s.run(ledger::begin);
+        s.soft = expectDefeat || exploratory;
 
         // --- defense: ferroprism to the core through two router-fed turrets, drill-fed turrets at the breach entrance
         phase(h, s, "ferroprism to the core through two router-fed turrets", () -> {
@@ -274,7 +286,7 @@ public class DeepPlaySuite implements VesperHarness.Suite{
                 bot.build(powerAccumulator, 99, 47);
                 bot.build(powerAccumulator, 56, 81);
             }, 420f);
-        }else if(mode.equals("intensive")){
+        }else if(intensive()){
             phase(h, s, "a pulse turret at every relay", () -> {
                 bot.build(pulseTurret, 11, 47);
                 bot.build(pulseTurret, 99, 47);
@@ -307,8 +319,8 @@ public class DeepPlaySuite implements VesperHarness.Suite{
             () -> terminal().upkeepCores() + " + " + terminal().powerCores() + " cores at resonance x" + Strings.fixed(terminal().rate(), 2));
         if(factory){
             //what the terminal says a synchronization costs; the intensive base counts on its factory during it and starts at three quarters
-            s.until(tag + ": the network holds the cores the terminal asks for" + (mode.equals("intensive") ? " (three quarters of it)" : ""),
-                () -> stock() >= Math.ceil(terminal().coresPerSync() * (mode.equals("intensive") ? 0.75f : 1f)), 1200f,
+            s.until(tag + ": the network holds the cores the terminal asks for" + (intensive() ? " (three quarters of it)" : ""),
+                () -> stock() >= Math.ceil(terminal().coresPerSync() * (intensive() ? 0.75f : 1f)), 1200f,
                 () -> stock() + " cores in the network (the terminal asks " + terminal().coresPerSync() + "), t=" + minutes());
         }else if(dynamos){
             //no core line: whatever the loadout left, once it is at the relays' side and covers what the terminal says
@@ -350,6 +362,12 @@ public class DeepPlaySuite implements VesperHarness.Suite{
                 + (state.rules.defaultTeam.core() == null ? "lost" : (int)state.rules.defaultTeam.core().health + " hp"));
         s.check(tag + ": the network is synchronized and the mission complete", () -> terminal().syncState == SyncState.synced && Vesper.deep.victory
             && Vesper.deep.completed == 3, () -> "");
+        s.soft = false;
+        if(mode.equals("minimal")) s.check(tag + ": EXPECTED DEFEAT: with no core line the loadout does not pay the relays' dynamos, and no relay ever burns a core",
+            () -> !won(h) && nodesSpent() == 0, () -> "won " + won(h) + ", relays burned " + nodesSpent() + ", network " + stock());
+        if(mode.equals("economic")) s.check(tag + ": EXPECTED DEFEAT: engines and a bare resonator instead of a factory are loud: the planet answers before the synchronization ends",
+            () -> !won(h) && a.awakened, () -> "won " + won(h) + ", awakened " + a.awakened + ", peak activity " + (int)maxLevel + ", core "
+                + (state.rules.defaultTeam.core() == null ? "lost" : "standing"));
         if(!campaign) s.check(tag + ": a custom game's victory leaves the campaign alone", () -> !Chapter.secured(VSectors.deepSignal) && state.rules.sector == null
             && !Chapter.Record.centralControl.found(), () -> "");
         s.run(() -> {
@@ -362,11 +380,12 @@ public class DeepPlaySuite implements VesperHarness.Suite{
                 + "; in the network when the relays came online " + stockAtOnline + ", now " + stock() + "; mean activity " + Strings.fixed(levelSum / ticks, 1)
                 + " (peak " + (int)maxLevel + "), pulses " + a.pulses + ", patrols " + a.patrols + ", awakened " + a.awakened + ", waves met " + (state.wave - 1)
                 + ", core " + (state.rules.defaultTeam.core() == null ? "lost" : (int)state.rules.defaultTeam.core().health + "/" + (int)state.rules.defaultTeam.core().maxHealth));
-            h.line("info: " + tag + " buildings lost " + lost + ", rebuilt " + bot.rebuilt);
+            h.line("info: " + tag + " buildings lost " + lost + ", rebuilt " + bot.rebuilt + ", relays paused " + pauses + " times");
             h.line("info: " + tag + " infrastructure: " + FaultSuite.infrastructure());
             ledger.mark("victory");
             h.line("info: " + tag + " ledger: " + ledger.report());
             for(var m : ledger.marks) h.line("info: " + tag + " at " + m.key + ": " + m.value);
+            h.check(tag + ": every resonance core is accounted for, on every frame", ledger.residual() == 0 && ledger.offBalance == 0, ledger.balance());
             ledger.active = false;
         });
         h.shot(tag + "-03-victory", 60, 45, 2f, true);
@@ -393,6 +412,31 @@ public class DeepPlaySuite implements VesperHarness.Suite{
             carrying = false;
             if(!headless && ui.restart.isShown()) ui.restart.hide();
         });
+    }
+
+    boolean intensive(){
+        return mode.startsWith("intensive");
+    }
+
+    /**
+     * The intensive base's answer to a dry network, what a player can do with a tap on each relay. With the relays on, their
+     * dynamos burn cores even while the synchronization stands still, about what the factory makes: the network never
+     * refills, and every interruption slips back to the last quarter. Off, the factory's cores stay in the network; back on
+     * once it holds what the rest of the synchronization costs (plus what the belts keep), which the last quarter kept.
+     */
+    void pace(){
+        if(!mode.equals("intensive") || !bot.active || !state.isPlaying()) return;
+        var t = terminal();
+        if(t == null || t.syncState != SyncState.syncing) return;
+        int stock = stock();
+        if(!paused && t.interrupted > 0f && stock < 30){
+            paused = true;
+            pauses++;
+            t.nodes().each(n -> n.configure(false));
+        }else if(paused && stock >= 30 + Math.ceil(t.coresPerSync() * (1f - t.checkpoint))){
+            paused = false;
+            t.nodes().each(n -> n.configure(true));
+        }
     }
 
     /**

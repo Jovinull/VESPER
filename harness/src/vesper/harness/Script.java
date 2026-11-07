@@ -19,6 +19,12 @@ public class Script{
     final Seq<String> suiteOf = new Seq<>();
     String suite = "";
     final VesperHarness h;
+    /**
+     * While true, the {@link #until} and {@link #check} steps appended record an OUTCOME instead of a PASS or a FAIL:
+     * what a diagnostic playthrough got, which proves nothing either way. What such a suite claims is checked with
+     * this off: a strategy expected to lose fails if it wins, and conservation holds whatever the result.
+     */
+    public boolean soft;
 
     Script(VesperHarness h){
         this.h = h;
@@ -50,13 +56,18 @@ public class Script{
     /** Waits until the condition holds; records PASS when it does, FAIL on timeout (game seconds). */
     public void until(String check, Boolp cond, float timeout, @Nullable Prov<String> detail){
         float[] t = {0f};
+        boolean outcome = soft;
         step(d -> {
             if(cond.get()){
-                h.pass(check, detail == null ? "after " + Strings.fixed(t[0] / 60f, 1) + " s" : detail.get() + " (after " + Strings.fixed(t[0] / 60f, 1) + " s)");
+                String text = detail == null ? "after " + Strings.fixed(t[0] / 60f, 1) + " s" : detail.get() + " (after " + Strings.fixed(t[0] / 60f, 1) + " s)";
+                if(outcome) h.outcome(check, "reached: " + text);
+                else h.pass(check, text);
                 return true;
             }
             if((t[0] += d) >= timeout * 60f){
-                h.fail(check, "timed out after " + timeout + " s" + (detail == null ? "" : ": " + detail.get()));
+                String text = "timed out after " + timeout + " s" + (detail == null ? "" : ": " + detail.get());
+                if(outcome) h.outcome(check, "not reached: " + text);
+                else h.fail(check, text);
                 return true;
             }
             return false;
@@ -71,7 +82,11 @@ public class Script{
 
     /** Records PASS or FAIL now. */
     public void check(String check, Boolp cond, Prov<String> detail){
-        run(() -> h.check(check, cond.get(), detail.get()));
+        boolean outcome = soft;
+        run(() -> {
+            if(outcome) h.outcome(check, (cond.get() ? "yes" : "no") + ": " + detail.get());
+            else h.check(check, cond.get(), detail.get());
+        });
     }
 
     boolean empty(){

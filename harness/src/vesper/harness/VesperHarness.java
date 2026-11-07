@@ -36,7 +36,7 @@ public class VesperHarness extends Mod{
     final StringBuilder report = new StringBuilder();
     public final Script script = new Script(this);
     public Fi out;
-    int passed, failed, pauses;
+    int passed, failed, outcomes, pauses;
     boolean finished;
 
     //camera and capture
@@ -134,6 +134,7 @@ public class VesperHarness extends Mod{
                 case "deep-stable" -> new DeepPlaySuite("stable");
                 case "deep-intensive" -> new DeepPlaySuite("intensive");
                 case "deep-redundant" -> new DeepPlaySuite("redundant");
+                case "deep-intensive-naive" -> new DeepPlaySuite("intensive-naive");
                 case "deep-economic" -> new DeepPlaySuite("economic");
                 case "deep-minimal" -> new DeepPlaySuite("minimal");
                 case "deep-resilience" -> new DeepResilienceSuite();
@@ -144,6 +145,7 @@ public class VesperHarness extends Mod{
                 case "control-opportunist" -> new ControlPlaySuite("opportunist");
                 case "control-opportunist-slow" -> new ControlPlaySuite("opportunist-slow");
                 case "control-economic" -> new ControlPlaySuite("economic");
+                case "control-nocore" -> new ControlPlaySuite("nocore");
                 case "control-ui" -> new ControlUiSuite();
                 case "defeat" -> new DefeatSuite();
                 case "gallery" -> new GallerySuite();
@@ -177,6 +179,12 @@ public class VesperHarness extends Mod{
     public void fail(String check, String detail){
         failed++;
         line("FAIL " + check + (detail.isEmpty() ? "" : " - " + detail));
+    }
+
+    /** What a diagnostic playthrough got: neither a pass nor a failure (see {@link Script#soft}). */
+    public void outcome(String check, String detail){
+        outcomes++;
+        line("OUTCOME " + check + (detail.isEmpty() ? "" : " - " + detail));
     }
 
     public void check(String check, boolean ok, String detail){
@@ -241,7 +249,7 @@ public class VesperHarness extends Mod{
         if(finished) return;
         finished = true;
         freeCamera();
-        line("SUMMARY " + passed + " passed, " + failed + " failed" + (pauses > 0 ? " (game resumed after " + pauses + " pauses)" : ""));
+        line("SUMMARY " + passed + " passed, " + failed + " failed" + (outcomes > 0 ? ", " + outcomes + " diagnostic outcomes" : "") + (pauses > 0 ? " (game resumed after " + pauses + " pauses)" : ""));
         out.child("report.txt").writeString(report.toString());
         Log.info("[vesper-harness] done, exiting with status " + (failed > 0 ? 1 : 0));
         int status = failed > 0 ? 1 : 0;

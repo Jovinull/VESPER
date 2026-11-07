@@ -34,6 +34,7 @@ public class BasinHud{
     private boolean seen;
     private Stage lastStage = Stage.dormant;
     private boolean lastPending, lastReleased, lastVictory, lastHolding, lastPulsePending, lastPulseActive;
+    private int lastPulsesContained, lastPatrolsContained;
     private int lastCompleted;
     private float effectTimer, pulseEffectTimer;
     /** Announcements wait for the previous one, so two state changes in a row never overlap on screen. */
@@ -230,8 +231,11 @@ public class BasinHud{
         boolean victory = scenario != null && scenario.victory(), released = scenario != null && scenario.released(),
             holding = scenario != null && scenario.holding();
         int completed = scenario == null ? 0 : scenario.completed();
+        int pulsesContained = activity.pulsesContained, patrolsContained = activity.patrolsContained;
         if(!seen){
             seen = true;
+            lastPulsesContained = pulsesContained;
+            lastPatrolsContained = patrolsContained;
             lastStage = activity.stage;
             lastPending = pending;
             lastCompleted = completed;
@@ -266,6 +270,9 @@ public class BasinHud{
             VFx.pulseImpact.at(activity.pulseX * tilesize, activity.pulseY * tilesize, activity.pulseRadius);
             Sounds.explosionArtilleryShock.at(activity.pulseX * tilesize, activity.pulseY * tilesize, 1.4f, 0.5f);
         }
+        //a shut vent held back what was announced through it
+        if(pulsesContained > lastPulsesContained) ui.hudfrag.showToast(Icon.lock, Core.bundle.get("vesper.pulse.contained"));
+        if(patrolsContained > lastPatrolsContained) ui.hudfrag.showToast(Icon.lock, Core.bundle.get("vesper.activity.toast.contained"));
         if(released && !lastReleased){
             announcements.add(new Notice(Core.bundle.get(scenario.key() + ".final")));
         }
@@ -287,6 +294,8 @@ public class BasinHud{
         lastHolding = holding;
         lastPulsePending = pulsePending;
         lastPulseActive = pulseActive;
+        lastPulsesContained = pulsesContained;
+        lastPatrolsContained = patrolsContained;
 
         if(!announcements.isEmpty() && Time.globalTime >= announceUntil){
             Notice next = announcements.remove(0);
@@ -297,7 +306,7 @@ public class BasinHud{
         //the gates flare while something is about to come out of them
         if(pending && (effectTimer += Time.delta) >= 45f){
             effectTimer = 0f;
-            for(Tile gate : activity.gates()){
+            for(Tile gate : activity.openGates()){
                 VFx.gateWarning.at(gate.worldx(), gate.worldy());
             }
         }

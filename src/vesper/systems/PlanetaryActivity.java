@@ -1,6 +1,7 @@
 package vesper.systems;
 
 import arc.*;
+import arc.func.*;
 import arc.math.*;
 import arc.struct.*;
 import arc.util.*;
@@ -83,6 +84,14 @@ public class PlanetaryActivity{
     public float pulsePending = -1f, pulseActive = -1f, pulseCooldown;
     /** Epicentre of the announced or running pulse (tile coordinates) and the number of pulses so far. */
     public int pulseX, pulseY, pulses;
+    /** The vent the announced pulse aims through (tile coordinates; -1: none); pulses and patrols held back at shut vents. */
+    public int pulseGateX = -1, pulseGateY = -1, pulsesContained, patrolsContained;
+
+    /**
+     * Vents a map can shut (Central Control's containment locks): whether a gate is shut now, and paying to hold back
+     * a pulse that was announced through it before it closed. Set by content; elsewhere no gate is ever shut.
+     */
+    public static Boolf<Tile> shut = t -> false, holdPulse = t -> false;
 
     private @Nullable Rules bound;
     private boolean active, responses;
@@ -301,7 +310,8 @@ public class PlanetaryActivity{
     private void clear(){
         level = shock = industry = ancient = stabilization = cooldown = sampleTimer = pulseCooldown = 0f;
         awakened = pendingAwakening = false;
-        patrols = pendingCrawlers = pendingSentinels = pulseX = pulseY = pulses = 0;
+        patrols = pendingCrawlers = pendingSentinels = pulseX = pulseY = pulses = pulsesContained = patrolsContained = 0;
+        pulseGateX = pulseGateY = -1;
         pending = pulsePending = pulseActive = -1f;
         stage = Stage.dormant;
     }
@@ -376,7 +386,15 @@ public class PlanetaryActivity{
 
     private void spawnIncursion(){
         pending = -1f;
-        Seq<Tile> gates = gates();
+        Seq<Tile> gates = openGates();
+        if(gates.isEmpty()){
+            //every vent is shut: the incursion never climbs out
+            patrolsContained++;
+            cooldown = patrolCooldown;
+            pendingCrawlers = pendingSentinels = 0;
+            publish();
+            return;
+        }
         Team team = state.rules.waveTeam;
         int index = 0;
         for(int i = 0; i < pendingSentinels + pendingCrawlers; i++){
@@ -393,25 +411,45 @@ public class PlanetaryActivity{
         publish();
     }
 
-    /** The working resonance machine closest to an ancient gate (the fault), lowest position first on ties; an idle dynamo is not working. */
+    /** The working resonance machine closest to an open ancient gate (the fault), lowest position first on ties; an idle dynamo is not working. */
     @Nullable Building pulseTarget(){
-        Seq<Tile> gates = gates();
+        Seq<Tile> gates = openGates();
         Building best = null;
+        Tile bestGate = null;
         float bestDst = Float.MAX_VALUE;
         for(Building b : state.rules.defaultTeam.data().buildings){
             if(!resonant.contains(b.block) || working(b) <= 0f) continue;
-            float dst = Float.MAX_VALUE;
-            for(Tile g : gates) dst = Math.min(dst, b.dst2(g.worldx(), g.worldy()));
-            if(dst < bestDst || (dst == bestDst && best != null && b.pos() < best.pos())){
-                best = b;
-                bestDst = dst;
+            for(Tile g : gates){
+                float dst = b.dst2(g.worldx(), g.worldy());
+                if(dst < bestDst || (dst == bestDst && best != null && b.pos() < best.pos())){
+                    best = b;
+                    bestGate = g;
+                    bestDst = dst;
+                }
             }
         }
+        pulseGateX = bestGate == null ? -1 : bestGate.x;
+        pulseGateY = bestGate == null ? -1 : bestGate.y;
         return best;
+    }
+
+    /** The gates no lock holds shut (all of them on maps without locks). */
+    public Seq<Tile> openGates(){
+        Seq<Tile> out = gates();
+        out.removeAll(t -> shut.get(t));
+        return out;
     }
 
     private void landPulse(){
         pulsePending = -1f;
+        //announced through a vent that has been shut since: the lock holds it back (and pays for it)
+        Tile gate = world.tile(pulseGateX, pulseGateY);
+        if(gate != null && shut.get(gate) && holdPulse.get(gate)){
+            pulsesContained++;
+            pulseCooldown = Mathf.lerp(pulseCooldownSlow, pulseCooldownFast, Mathf.clamp((level - pulseLevel) / (100f - pulseLevel)));
+            publish();
+            return;
+        }
         pulseActive = pulseDuration;
         pulses++;
         //the flare lifts the target; the level climbs towards it at the usual rate (stabilizers can absorb it)
@@ -465,17 +503,21 @@ public class PlanetaryActivity{
         lastSent = data;
     }
 
-    /** Version 2 (0.3) appends stabilization and the pulse to the 0.2 fields; version 1 still reads. */
+    /**
+     * Version 3 (0.8) appends the vent the announced pulse aims through and what shut vents held back; version 2
+     * (0.3) appended stabilization and the pulse to the 0.2 fields. Every older version still reads.
+     */
     String write(){
-        return Strings.format("2;@;@;@;@;@;@;@;@;@;@;@;@;@;@;@;@;@;@",
+        return Strings.format("3;@;@;@;@;@;@;@;@;@;@;@;@;@;@;@;@;@;@;@;@;@;@",
             Strings.fixed(level, 2), Strings.fixed(shock, 2), Strings.fixed(industry, 2), Strings.fixed(ancient, 2),
             awakened ? 1 : 0, patrols, (int)cooldown, (int)pending, pendingCrawlers, pendingSentinels, (pendingAwakening ? 1 : 0) + "," + stage.ordinal(),
-            Strings.fixed(stabilization, 2), (int)pulsePending, (int)pulseActive, (int)pulseCooldown, pulseX, pulseY, pulses);
+            Strings.fixed(stabilization, 2), (int)pulsePending, (int)pulseActive, (int)pulseCooldown, pulseX, pulseY, pulses,
+            pulseGateX, pulseGateY, pulsesContained, patrolsContained);
     }
 
     void read(String data){
         String[] v = data.split(";");
-        boolean v1 = v.length >= 12 && v[0].equals("1"), v2 = v.length >= 19 && v[0].equals("2");
+        boolean v1 = v.length >= 12 && v[0].equals("1"), v3 = v.length >= 23 && v[0].equals("3"), v2 = (v.length >= 19 && v[0].equals("2")) || v3;
         if(!v1 && !v2) return;
         level = Strings.parseFloat(v[1], 0f);
         shock = Strings.parseFloat(v[2], 0f);
@@ -498,6 +540,12 @@ public class PlanetaryActivity{
             pulseX = Strings.parseInt(v[16], 0);
             pulseY = Strings.parseInt(v[17], 0);
             pulses = Strings.parseInt(v[18], 0);
+        }
+        if(v3){
+            pulseGateX = Strings.parseInt(v[19], -1);
+            pulseGateY = Strings.parseInt(v[20], -1);
+            pulsesContained = Strings.parseInt(v[21], 0);
+            patrolsContained = Strings.parseInt(v[22], 0);
         }
     }
 }

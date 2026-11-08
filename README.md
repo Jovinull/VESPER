@@ -13,6 +13,10 @@
   <a href="LICENSE"><img alt="GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-4a5560"></a>
 </p>
 
+<p align="center">
+  <a href="https://steamcommunity.com/sharedfiles/filedetails/?id=3836105133"><b>Steam Workshop</b></a> &nbsp;|&nbsp; <a href="https://youtu.be/XoK3TWa6tCc"><b>Watch the trailer</b></a>
+</p>
+
 VESPER is a campaign and content mod for [Mindustry](https://github.com/Anuken/Mindustry). It adds its own planet, tech tree, industry and ancient machinery, and a planetary response that reacts to the factory you build.
 
 > [!NOTE]
@@ -60,6 +64,11 @@ The native campaign takes you down through five sectors, each built around its o
 **Resonance industry.** Extract crystal, press resonance cores and burn them in dynamos that follow your power demand. Containment fields hold the pulses back, for a price.
 
 ## Installation
+
+**From the Steam Workshop**
+
+1. [Subscribe to VESPER](https://steamcommunity.com/sharedfiles/filedetails/?id=3836105133) on the Steam Workshop.
+2. Start Mindustry from Steam, open **Play > Campaign** and select the VESPER planet.
 
 **From GitHub**
 

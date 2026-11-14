@@ -209,7 +209,7 @@ public class SignalTerminal extends AncientSite{
                     + Core.bundle.format("vesper.terminal.cost", (int)syncSeconds(), coresPerSync(), upkeepCores(), powerCores()) + "\n"
                     + Core.bundle.format("vesper.terminal.resonance", Strings.fixed(rate(), 2));
                 case syncing -> Core.bundle.format("vesper.terminal.syncing", (int)(progress * 100f), (int)(checkpoint * 100f), interrupted > 0f
-                    ? Core.bundle.format("vesper.terminal.interrupted", Strings.autoFixed(Math.max(0f, grace - interrupted) / 60f, 0)) : "") + "\n"
+                    ? "\n" + Core.bundle.format("vesper.terminal.interrupted", Strings.autoFixed(Math.max(0f, grace - interrupted) / 60f, 0)) : "") + "\n"
                     + Core.bundle.format("vesper.terminal.resonance", Strings.fixed(rate(), 2));
                 case synced -> Core.bundle.get("vesper.terminal.done");
             });

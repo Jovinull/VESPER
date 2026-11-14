@@ -58,10 +58,18 @@ public class ContentSuite implements VesperHarness.Suite{
             Seq<String> onlyEn = en.toSeq().select(k -> !pt.contains(k)), onlyPt = pt.toSeq().select(k -> !en.contains(k));
             h.check("bundles have the same keys", onlyEn.isEmpty() && onlyPt.isEmpty(),
                 en.size + " keys; missing in pt_BR: " + onlyEn + "; missing in en: " + onlyPt);
+            //a value broken onto its own line leaves the key empty (the terminal's interruption notice never showed)
+            for(String file : new String[]{"bundle.properties", "bundle_pt_BR.properties"}){
+                Seq<String> malformed = malformed(mod.root.child("bundles").child(file));
+                h.check("every line of " + file + " is a key with a value", malformed.isEmpty(), malformed.toString());
+            }
             //texts looked up by key at run time: a missing one would show as ???key??? in game
             Seq<String> used = new Seq<>();
-            for(var scenario : new vesper.mission.Scenario[]{vesper.Vesper.mission, vesper.Vesper.fault, vesper.Vesper.foundry, vesper.Vesper.works}){
+            for(var scenario : new vesper.mission.Scenario[]{vesper.Vesper.mission, vesper.Vesper.fault, vesper.Vesper.foundry, vesper.Vesper.works,
+                vesper.Vesper.deep, vesper.Vesper.central}){
                 used.addAll(scenario.key() + ".title", scenario.key() + ".victory");
+                //without its own, the HUD falls back to First Awakening's "complete" line
+                if(scenario != vesper.Vesper.mission) used.add(scenario.key() + ".complete");
                 for(var objective : scenario.objectives()) used.add("vesper.objective." + objective.key);
             }
             used.addAll("vesper.fault.complete", "vesper.response.help", "vesper.pulse.incoming", "vesper.pulse.active", "vesper.pulse.announce", "vesper.pulse.toast",
@@ -91,6 +99,19 @@ public class ContentSuite implements VesperHarness.Suite{
             int eq = line.indexOf('=');
             if(line.isEmpty() || line.startsWith("#") || eq < 0) continue;
             out.add(line.substring(0, eq).trim());
+        }
+        return out;
+    }
+
+    /** Lines that are neither a comment, blank, nor {@code key = value} with a value. */
+    static Seq<String> malformed(Fi file){
+        Seq<String> out = new Seq<>();
+        String[] lines = file.readString("UTF-8").split("\n");
+        for(int i = 0; i < lines.length; i++){
+            String line = lines[i].trim();
+            if(line.isEmpty() || line.startsWith("#")) continue;
+            int eq = line.indexOf('=');
+            if(eq <= 0 || line.substring(eq + 1).trim().isEmpty()) out.add((i + 1) + ": " + line);
         }
         return out;
     }

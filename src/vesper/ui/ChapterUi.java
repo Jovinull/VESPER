@@ -1,6 +1,7 @@
 package vesper.ui;
 
 import arc.*;
+import arc.scene.ui.*;
 import arc.scene.ui.layout.*;
 import arc.util.*;
 import mindustry.ctype.*;
@@ -44,7 +45,30 @@ public class ChapterUi{
         Events.on(SecuredEvent.class, e -> {
             if(!net.client()) Time.run(3f * 60f, () -> afterAnnouncements(e, 0));
         });
-        Events.on(mindustry.game.EventType.ClientLoadEvent.class, e -> ui.planet.shown(this::planetShown));
+        Events.on(mindustry.game.EventType.ClientLoadEvent.class, e -> {
+            ui.planet.shown(this::planetShown);
+            ui.planet.loadouts.shown(this::loadoutShown);
+        });
+    }
+
+    /**
+     * The native launch dialog wraps a sector's description without giving it a width, so every line of it is one
+     * line on screen: on a small window Vesper's ran off both sides. Before the dialog packs, give it the text column.
+     */
+    void loadoutShown(){
+        for(var child : ui.planet.loadouts.cont.getChildren()){
+            if(!(child instanceof ScrollPane pane) || !(pane.getWidget() instanceof Table table)) continue;
+            for(var element : table.getChildren()){
+                if(element instanceof Label label && isVesperDescription(label.getText().toString())){
+                    table.getCell(label).width(textWidth());
+                    pane.invalidateHierarchy();
+                }
+            }
+        }
+    }
+
+    static boolean isVesperDescription(String text){
+        return content.sectors().contains(p -> p.planet == VPlanets.vesper && text.equals(p.description));
     }
 
     void afterAnnouncements(SecuredEvent e, int tries){

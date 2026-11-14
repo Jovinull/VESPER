@@ -2,6 +2,9 @@ package vesper.ui;
 
 import arc.*;
 import arc.graphics.*;
+import arc.math.*;
+import arc.scene.actions.*;
+import arc.scene.event.*;
 import arc.scene.ui.layout.*;
 import arc.struct.*;
 import arc.util.*;
@@ -40,6 +43,8 @@ public class BasinHud{
     /** Announcements wait for the previous one, so two state changes in a row never overlap on screen. */
     private final Seq<Notice> announcements = new Seq<>();
     private float announceUntil;
+    /** The announcement on screen, so the victory can take its place instead of being drawn over it. */
+    private @Nullable Table shownNotice;
     static final float announceSeconds = 4.5f, recordSeconds = 9f;
     /** Characters per line of an announcement (the game's announcement never wraps: a long record ran off the screen). */
     static final int noticeWidth = 64;
@@ -96,6 +101,23 @@ public class BasinHud{
             }
         }
         return out.toString();
+    }
+
+    /** Same look as the game's {@code ui.announce}, but the table is kept so a later notice can remove it. */
+    private void announce(String text, float duration){
+        Table t = new Table(Styles.black3);
+        t.touchable = Touchable.disabled;
+        t.margin(8f).add(text).style(Styles.outlineLabel).labelAlign(Align.center);
+        t.update(() -> {
+            t.setPosition(Core.graphics.getWidth() / 2f, Core.graphics.getHeight() / 2f, Align.center);
+            t.toFront();
+            if(state.isMenu() || !ui.hudfrag.shown) t.remove();
+        });
+        t.actions(Actions.fadeOut(duration, Interp.pow4In), Actions.remove());
+        t.pack();
+        t.act(0.1f);
+        Core.scene.add(t);
+        shownNotice = t;
     }
 
     public boolean quiet(){
@@ -283,6 +305,8 @@ public class BasinHud{
             //the native game over dialog only says "game over"; say what was won first (records found with it follow)
             announcements.removeAll(n -> !n.record);
             announceUntil = 0f;
+            //the game's announcements never replace each other: a threat still fading out would sit under the victory
+            if(shownNotice != null) shownNotice.remove();
             announcements.insert(0, new Notice(Core.bundle.get(scenario.key() + ".victory")));
         }
 
@@ -299,7 +323,7 @@ public class BasinHud{
 
         if(!announcements.isEmpty() && Time.globalTime >= announceUntil){
             Notice next = announcements.remove(0);
-            ui.announce(wrap(next.text, noticeWidth), next.seconds);
+            announce(wrap(next.text, noticeWidth), next.seconds);
             announceUntil = Time.globalTime + next.seconds * 60f;
         }
 

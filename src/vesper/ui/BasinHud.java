@@ -103,6 +103,18 @@ public class BasinHud{
         return out.toString();
     }
 
+    /**
+     * The part of an objective a completion toast needs: up to its first colon or parenthesis. The HUD keeps the
+     * whole line; repeated in full, a toast ran to six lines.
+     */
+    static String headline(String text){
+        int cut = text.length();
+        int colon = text.indexOf(": "), paren = text.indexOf(" (");
+        if(colon > 0) cut = Math.min(cut, colon);
+        if(paren > 0) cut = Math.min(cut, paren);
+        return text.substring(0, cut);
+    }
+
     /** Same look as the game's {@code ui.announce}, but the table is kept so a later notice can remove it. */
     private void announce(String text, float duration){
         Table t = new Table(Styles.black3);
@@ -282,7 +294,7 @@ public class BasinHud{
         }
         if(scenario != null && completed > lastCompleted && completed <= scenario.objectives().size){
             var done = scenario.objectives().get(completed - 1);
-            ui.hudfrag.showToast(Icon.ok, Core.bundle.format("vesper.objective.done", done.text()));
+            ui.hudfrag.showToast(Icon.ok, Core.bundle.format("vesper.objective.done", headline(done.text())));
         }
         if(pulsePending && !lastPulsePending){
             announcements.add(new Notice(Core.bundle.format("vesper.pulse.announce", (int)(activity.pulsePending / 60f))));

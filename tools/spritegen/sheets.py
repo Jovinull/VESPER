@@ -42,6 +42,9 @@ def look_from_images(e, imgs, team=None):
         return imgs["1"]
     if e.kind == "ore":
         return P.ore_shadow(imgs["1"])
+    if "" not in imgs and "1" in imgs:
+        #floors declared outside the terrain family (the control conduits) only have numbered variants
+        return imgs["1"]
     if e.kind in ("item", "effect"):
         return imgs[""]
     if e.kind == "unit":
@@ -150,7 +153,8 @@ def floor_tile(fam, v):
 
 
 def sheet_terrain(out, stencil):
-    fams = by_family("terrain")
+    #static walls share the family but have two variants and no field to tile
+    fams = [e for e in by_family("terrain") if e.kind == "floor"]
     W = 1900
     sheet = Image.new("RGBA", (W, 1500), P.BG_DARK)
     d = ImageDraw.Draw(sheet)

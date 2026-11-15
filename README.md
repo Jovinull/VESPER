@@ -99,6 +99,10 @@ Found a bug or have an idea? [Open an issue](https://github.com/Jovinull/VESPER/
 
 You need JDK 17. `./gradlew jar` builds a desktop jar. `./gradlew deploy` builds the universal jar and needs an Android SDK. `./gradlew runServer -Pharness=all` runs the automated test suites on the official dedicated server.
 
+## AI assistance
+
+VESPER is made with the help of AI tools. AI assistants are used throughout development, to write code, sprite and map generators, tests, texts and documentation. The design, the creative direction and the final review of everything that ships are the author's. Every change is tested in the game before release.
+
 ## License
 
 VESPER is free software under the [GNU General Public License v3.0](LICENSE), created by Jovinull.
